@@ -136,8 +136,8 @@ size_t AddExtendedCandidatesFromInvalid(std::vector<algos::cfdfinder::LhsPair>& 
             next_level.emplace_back(std::move(child), std::move(lhs_ext));
             candidates++;
         }
-        if(!found){
-            max_non_fds.emplace_back(lhs,rhs);
+        if (!found) {
+            max_non_fds.emplace_back(lhs, rhs);
         }
     }
     return candidates;
@@ -326,4 +326,4 @@ algos::hy::IdPairs Validator::ValidateAndExtendCandidates() {
     return {};
 }
 
-}  // namespace algos::hyfd
+}  // namespace algos::cfdfinder

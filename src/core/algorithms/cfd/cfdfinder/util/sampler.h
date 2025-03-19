@@ -7,4 +7,4 @@ namespace algos::cfdfinder {
 // CFDFinder has exactly the same logic in Sampler as HyFD
 using hyfd::Sampler;
 
-}  // namespace algos::cfd::cfdfinder
+}  // namespace algos::cfdfinder

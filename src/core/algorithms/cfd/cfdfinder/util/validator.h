@@ -5,11 +5,11 @@
 #include <vector>
 
 #include "algorithms/fd/hycommon/primitive_validations.h"
+#include "algorithms/fd/hycommon/types.h"
 #include "algorithms/fd/hyfd/model/fd_tree.h"
 #include "algorithms/fd/raw_fd.h"
 #include "config/thread_number/type.h"
 #include "model/table/position_list_index.h"
-#include "algorithms/fd/hycommon/types.h"
 
 namespace algos::cfdfinder {
 
@@ -55,4 +55,4 @@ public:
     hy::IdPairs ValidateAndExtendCandidates();
 };
 
-}  // namespace algos::hyfd
+}  // namespace algos::cfdfinder

@@ -21,10 +21,10 @@ public:
     explicit Inductor(std::shared_ptr<FDTree> tree) noexcept : tree_(std::move(tree)) {}
 
     void UpdateFdTree(NonFDList&& non_fds);
-    
+
     std::vector<RawFD> GetMaxNonFDs() {
         return std::move(max_non_fds_);
     }
 };
 
-}  // namespace algos::hyfd
+}  // namespace algos::cfdfinder

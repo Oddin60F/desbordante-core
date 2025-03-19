@@ -45,4 +45,4 @@ void Inductor::SpecializeTreeForNonFd(boost::dynamic_bitset<> const& lhs_bits, s
     max_non_fds_.emplace_back(lhs_bits, rhs_id);
 }
 
-}  // namespace algos::hyfd
+}  // namespace algos::cfdfinder

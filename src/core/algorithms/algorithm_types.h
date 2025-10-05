@@ -9,9 +9,9 @@ using AlgorithmTypes =
         std::tuple<Depminer, DFD, FastFDs, FDep, FdMine, Pyro, Tane, PFDTane, FUN, hyfd::HyFD, Aid,
                    EulerFD, Apriori, des::DES, metric::MetricVerifier, DataStats,
                    fd_verifier::FDVerifier, HyUCC, PyroUCC, HPIValid, cfd::FDFirstAlgorithm,
-                   ACAlgorithm, UCCVerifier, Faida, Spider, Mind, INDVerifier, Fastod, GfdValidator,
-                   EGfdValidator, NaiveGfdValidator, order::Order, dd::Split, Cords, hymd::HyMD,
-                   PFDVerifier, cfd_verifier::CFDVerifier, GSpan>;
+                   cfdfinder::CFDFinder, ACAlgorithm, UCCVerifier, Faida, Spider, Mind, INDVerifier,
+                   Fastod, GfdValidator, EGfdValidator, NaiveGfdValidator, order::Order, dd::Split,
+                   Cords, hymd::HyMD, PFDVerifier, cfd_verifier::CFDVerifier, GSpan>;
 
 /* Enumeration of all supported non-pipeline algorithms. If you implement a new
  * algorithm please add its corresponding value to this enum and to the type
@@ -56,6 +56,7 @@ BETTER_ENUM(AlgorithmType, char,
 
 /* CFD mining algorithms */
     fd_first_dfs,
+    cfdfinder,
 
 /* Algebraic constraints mining algorithm*/
     ac,

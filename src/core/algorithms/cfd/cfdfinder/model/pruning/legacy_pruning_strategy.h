@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <unordered_set>
 
 #include "core/algorithms/cfd/cfdfinder/model/pruning/pruning_strategy.h"
@@ -39,5 +40,9 @@ public:
     bool ValidForProcessing(Pattern const& child) override;
 
     bool ContinueGeneration(PatternTableau const& currentTableau) override;
+
+    std::shared_ptr<PruningStrategy> Clone() const override {
+        return std::make_shared<LegacyPruning>(*this);
+    }
 };
 }  // namespace algos::cfdfinder

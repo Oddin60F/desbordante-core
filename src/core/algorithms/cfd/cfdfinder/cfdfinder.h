@@ -82,6 +82,14 @@ private:
                                                 RowsPtr compressed_records_shared) const;
     void RegisterResults(std::shared_ptr<ResultStrategy> result_receiver,
                          InvertedClusterMaps inverted_cluster_maps);
+    void TraverseLatticePar(RowsPtr compressed_records_shared,
+                            InvertedClusterMaps inverted_cluster_maps,
+                            ColumnsPtr inverted_plis_shared, Lattice&& levels, PLIsPtr plis_shared,
+                            PLICache& pli_cache);
+    void TraverseLatticeSeq(RowsPtr compressed_records_shared,
+                            InvertedClusterMaps inverted_cluster_maps,
+                            ColumnsPtr inverted_plis_shared, Lattice&& levels, PLIsPtr plis_shared,
+                            PLICache& pli_cache);
 
 protected:
     void MakeExecuteOptsAvailable() override;

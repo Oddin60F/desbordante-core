@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <vector>
 
 #include "core/algorithms/cfd/cfdfinder/candidate.h"
@@ -19,5 +20,6 @@ public:
     virtual bool IsPatternWorthAdding(Pattern const& pattern) = 0;
     virtual bool ValidForProcessing(Pattern const& child) = 0;
     virtual bool ContinueGeneration(PatternTableau const& currentTableau) = 0;
+    virtual std::shared_ptr<PruningStrategy> Clone() const = 0;
 };
 }  // namespace algos::cfdfinder

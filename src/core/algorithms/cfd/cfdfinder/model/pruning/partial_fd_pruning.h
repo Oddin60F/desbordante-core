@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <vector>
 
 #include "core/algorithms/cfd/cfdfinder/model/pruning/pruning_strategy.h"
@@ -51,6 +52,10 @@ public:
 
     bool ContinueGeneration(PatternTableau const& current_tableau) override {
         return current_tableau.GetPatterns().size() == 1;
+    }
+
+    std::shared_ptr<PruningStrategy> Clone() const override {
+        return std::make_shared<PartialFdPruning>(*this);
     }
 };
 

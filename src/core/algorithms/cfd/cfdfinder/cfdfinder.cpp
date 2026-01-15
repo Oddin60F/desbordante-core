@@ -3,9 +3,12 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <future>
 #include <ranges>
 #include <unordered_set>
 
+#include <boost/asio/post.hpp>
+#include <boost/asio/thread_pool.hpp>
 #include <boost/dynamic_bitset.hpp>
 
 #include "core/algorithms/cfd/cfdfinder/model/expansion_strategies.h"
@@ -43,14 +46,9 @@ void CFDFinder::ResetState() {
 
 void CFDFinder::MakeExecuteOptsAvailable() {
     using namespace config::names;
-    MakeOptionsAvailable({
-            kCfdMinimumSupport,
-            kCfdMinimumConfidence,
-            kMaximumLhs,
-            kCfdExpansionStrategy,
-            kCfdPruningStrategy,
-            kCfdResultStrategy,
-    });
+    MakeOptionsAvailable({kCfdMinimumSupport, kCfdMinimumConfidence, kMaximumLhs,
+                          kCfdExpansionStrategy, kCfdPruningStrategy, kCfdResultStrategy,
+                          kThreads});
 };
 
 void CFDFinder::RegisterOptions() {
@@ -121,12 +119,114 @@ unsigned long long CFDFinder::ExecuteInternal() {
     auto levels = GetLattice(plis_shared, compressed_records_shared);
     auto inverted_cluster_maps = BuildEnrichedStructures(plis_shared, compressed_records_shared);
 
-    auto pruning_stategy = InitPruningStrategy(inverted_plis_shared);
+    PLICache pli_cache(limit_pli_cache_, relation_->GetSchema());
+
+    if (threads_num_ > 1) {
+        TraverseLatticePar(std::move(compressed_records_shared), std::move(inverted_cluster_maps),
+                           inverted_plis_shared, std::move(levels), plis_shared, pli_cache);
+    } else {
+        TraverseLatticeSeq(std::move(compressed_records_shared), std::move(inverted_cluster_maps),
+                           std::move(inverted_plis_shared), std::move(levels),
+                           std::move(plis_shared), pli_cache);
+    }
+
+    LOG_INFO("Total PLI computations: {}",
+             pli_cache.GetTotalMisses() + pli_cache.GetFullHits() + pli_cache.GetPartialHits());
+    LOG_INFO("Total PLI cache misses: {}", pli_cache.GetTotalMisses());
+    LOG_INFO("Total PLI cache hits: {}", pli_cache.GetFullHits() + pli_cache.GetPartialHits());
+    LOG_INFO("Total full PLI cache hits: {}", pli_cache.GetFullHits());
+    LOG_INFO("Total partial PLI cache hits: {}", pli_cache.GetPartialHits());
+
+    auto elapsed_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now() - start_time);
+    unsigned long long cfdfinder_millis = elapsed_milliseconds.count();
+    return cfdfinder_millis;
+}
+
+void CFDFinder::TraverseLatticePar(RowsPtr compressed_records_shared,
+                                   InvertedClusterMaps inverted_cluster_maps,
+                                   ColumnsPtr inverted_plis_shared, Lattice&& levels,
+                                   PLIsPtr plis_shared, PLICache& pli_cache) {
+    auto pruning_stategy_base = InitPruningStrategy(inverted_plis_shared);
     auto result_receiver = InitResultStrategy();
     auto expansion_stategy =
             InitExpansionStrategy(compressed_records_shared, inverted_cluster_maps);
 
-    PLICache pli_cache(limit_pli_cache_, relation_->GetSchema());
+    size_t num_results = 0;
+    int height = levels.size();
+    --height;
+
+    while (height >= 0) {
+        auto start_level_time = std::chrono::system_clock::now();
+        auto& current_level = levels[height];
+
+        boost::asio::thread_pool thread_pool(threads_num_);
+        std::vector<std::future<std::pair<Candidate, std::optional<PatternTableau>>>> futures;
+        futures.reserve(current_level.size());
+
+        while (!current_level.empty()) {
+            auto candidate = current_level.extract(current_level.begin()).value();
+            auto const lhs_pli = GetLhsPli(pli_cache, candidate.lhs_, *plis_shared);
+
+            auto proccess_candidate = [this, &inverted_plis_shared, &compressed_records_shared,
+                                       &expansion_stategy, candidate = std::move(candidate),
+                                       lhs_pli = std::move(lhs_pli),
+                                       pruning_strategy = pruning_stategy_base->Clone()]() mutable
+                    -> std::pair<Candidate, std::optional<PatternTableau>> {
+                auto const inverted_pli_rhs = inverted_plis_shared->at(candidate.rhs_);
+                pruning_strategy->StartNewTableau(candidate);
+                PatternTableau pattern_tableau = GenerateTableau(
+                        candidate.lhs_, lhs_pli.get(), inverted_pli_rhs, compressed_records_shared,
+                        expansion_stategy, pruning_strategy);
+
+                if (!pruning_strategy->ContinueGeneration(pattern_tableau)) {
+                    return {std::move(candidate), std::nullopt};
+                }
+                return {std::move(candidate), std::move(pattern_tableau)};
+            };
+
+            std::packaged_task<std::pair<Candidate, std::optional<PatternTableau>>()> task(
+                    std::move(proccess_candidate));
+            futures.push_back(task.get_future());
+            boost::asio::post(thread_pool, std::move(task));
+        }
+
+        thread_pool.join();
+
+        for (auto& future : futures) {
+            auto [candidate, pattern_tableau_opt] = future.get();
+            if (!pattern_tableau_opt) {
+                continue;
+            }
+
+            if (height > 0) {
+                auto& target_level = levels[height - 1];
+                for (auto&& subset : utils::GenerateLhsSubsets(candidate.lhs_)) {
+                    target_level.emplace(std::move(subset), candidate.rhs_);
+                }
+            }
+            ++num_results;
+            result_receiver->ReceiveResult(std::move(candidate), *pattern_tableau_opt);
+        }
+
+        auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now() - start_level_time);
+        LOG_INFO("Finished level {} ({}), {} results.", height, elapsed_seconds.count(),
+                 num_results);
+        --height;
+    }
+
+    RegisterResults(std::move(result_receiver), std::move(inverted_cluster_maps));
+}
+
+void CFDFinder::TraverseLatticeSeq(RowsPtr compressed_records_shared,
+                                   InvertedClusterMaps inverted_cluster_maps,
+                                   ColumnsPtr inverted_plis_shared, Lattice&& levels,
+                                   PLIsPtr plis_shared, PLICache& pli_cache) {
+    auto pruning_stategy = InitPruningStrategy(inverted_plis_shared);
+    auto result_receiver = InitResultStrategy();
+    auto expansion_stategy =
+            InitExpansionStrategy(compressed_records_shared, inverted_cluster_maps);
 
     size_t num_results = 0;
     int height = levels.size();
@@ -164,17 +264,6 @@ unsigned long long CFDFinder::ExecuteInternal() {
     }
 
     RegisterResults(std::move(result_receiver), std::move(inverted_cluster_maps));
-    LOG_INFO("Total PLI computations: {}",
-             pli_cache.GetTotalMisses() + pli_cache.GetFullHits() + pli_cache.GetPartialHits());
-    LOG_INFO("Total PLI cache misses: {}", pli_cache.GetTotalMisses());
-    LOG_INFO("Total PLI cache hits: {}", pli_cache.GetFullHits() + pli_cache.GetPartialHits());
-    LOG_INFO("Total full PLI cache hits: {}", pli_cache.GetFullHits());
-    LOG_INFO("Total partial PLI cache hits: {}", pli_cache.GetPartialHits());
-
-    auto elapsed_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now() - start_time);
-    unsigned long long cfdfinder_millis = elapsed_milliseconds.count();
-    return cfdfinder_millis;
 }
 
 InvertedClusterMaps CFDFinder::BuildEnrichedStructures(PLIsPtr plis_shared,
@@ -483,15 +572,16 @@ std::shared_ptr<PruningStrategy> CFDFinder::InitPruningStrategy(ColumnsPtr inver
             return std::make_shared<LegacyPruning>(min_support_, min_confidence_,
                                                    relation_->GetNumRows());
         case Pruning::support_independent:
-            return std::make_shared<SupportIndependentPruning>(
-                    max_patterns_, min_support_gain_, max_level_support_drop_, min_confidence_);
+            return std::make_shared<SupportIndependentPruning>(max_patterns_, min_support_gain_,
+                                                               max_level_support_drop_,
+                                                               min_confidence_, threads_num_);
         case Pruning::partial_fd:
             return std::make_shared<PartialFdPruning>(relation_->GetNumRows(), max_g1_,
                                                       std::move(inverted_plis));
         case Pruning::rhs_filter:
             return std::make_shared<RhsFilterPruning>(max_patterns_, min_support_gain_,
                                                       max_level_support_drop_, min_confidence_,
-                                                      rhs_filter_);
+                                                      rhs_filter_, threads_num_);
         default:
             return std::make_shared<LegacyPruning>(min_support_, min_confidence_,
                                                    relation_->GetNumRows());

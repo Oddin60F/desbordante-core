@@ -13,7 +13,7 @@ namespace algos::cfdfinder {
 class PatternDebugController {
 private:
     inline static bool debug_enabled_ = false;
-    inline static unsigned long long counter_ = 0;
+    inline static unsigned long long thread_local counter_ = 0;
 
 public:
     static bool IsDebugEnabled() {

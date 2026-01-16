@@ -13,6 +13,7 @@
 #include <pybind11/stl/filesystem.h>
 
 #include "core/algorithms/association_rules/ar_algorithm_enums.h"
+#include "core/algorithms/cfd/cfdfinder/enums.h"
 #include "core/algorithms/cfd/enums.h"
 #include "core/algorithms/dd/dd.h"
 #include "core/algorithms/md/hymd/enums.h"
@@ -120,16 +121,19 @@ py::tuple GetPyType(std::type_index type_index) {
             PyTypePair<std::vector<std::filesystem::path>, kPyList, kPyStr>,
             PyTypePair<std::unordered_set<size_t>, kPySet, kPyInt>,
             PyTypePair<std::string, kPyStr>,
-    };
+            PyTypePair<algos::cfdfinder::Expansion, kPyStr>,
+            PyTypePair<algos::cfdfinder::Pruning, kPyStr>,
+            PyTypePair<algos::cfdfinder::Result, kPyStr>};
+};
 
-    auto const it = type_map.find(type_index);
-    if (it == type_map.end()) [[unlikely]] {
-        std::ostringstream oss;
-        oss << "Cannot get Python type for " << boost::core::demangle(type_index.name())
-            << " (GetPyType)";
-        throw std::runtime_error(oss.str());
-    }
-    return it->second();
+auto const it = type_map.find(type_index);
+if (it == type_map.end()) [[unlikely]] {
+    std::ostringstream oss;
+    oss << "Cannot get Python type for " << boost::core::demangle(type_index.name())
+        << " (GetPyType)";
+    throw std::runtime_error(oss.str());
+}
+return it->second();
 }
 
 }  // namespace python_bindings

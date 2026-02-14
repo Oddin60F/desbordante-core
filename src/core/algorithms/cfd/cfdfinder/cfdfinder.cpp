@@ -3,9 +3,11 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <future>
 #include <ranges>
-#include <unordered_set>
 
+#include <boost/asio/post.hpp>
+#include <boost/asio/thread_pool.hpp>
 #include <boost/dynamic_bitset.hpp>
 
 #include "core/algorithms/cfd/cfdfinder/model/expansion_strategies.h"
@@ -13,11 +15,12 @@
 #include "core/algorithms/cfd/cfdfinder/model/hyfd/preprocessor.h"
 #include "core/algorithms/cfd/cfdfinder/model/hyfd/sampler.h"
 #include "core/algorithms/cfd/cfdfinder/model/hyfd/validator.h"
+#include "core/algorithms/cfd/cfdfinder/model/pattern/constant_entry.h"
+#include "core/algorithms/cfd/cfdfinder/model/pattern/negative_constant_entry.h"
 #include "core/algorithms/cfd/cfdfinder/model/pruning_strategies.h"
 #include "core/algorithms/cfd/cfdfinder/model/result_strategies.h"
 #include "core/algorithms/cfd/cfdfinder/types/frontier.h"
 #include "core/algorithms/cfd/cfdfinder/util/lhs_utils.h"
-#include "core/algorithms/cfd/cfdfinder/util/violations_util.h"
 #include "core/algorithms/fd/hycommon/util/pli_util.h"
 #include "core/config/equal_nulls/option.h"
 #include "core/config/indices/option.h"
@@ -44,7 +47,7 @@ void CFDFinder::ResetState() {
 void CFDFinder::MakeExecuteOptsAvailable() {
     using namespace config::names;
     MakeOptionsAvailable({kMaximumLhs, kLimitPliCache, kLimitPliCache, kCfdExpansionStrategy,
-                          kCfdPruningStrategy, kCfdResultStrategy});
+                          kCfdPruningStrategy, kCfdResultStrategy, kThreads, kRhsIndices});
 };
 
 void CFDFinder::RegisterOptions() {
@@ -67,9 +70,7 @@ void CFDFinder::RegisterOptions() {
     auto partial_fd_eq = [](Pruning pruning_strategy) {
         return pruning_strategy == +Pruning::partial_fd;
     };
-    auto rhs_filter_eq = [](Pruning pruning_strategy) {
-        return pruning_strategy == +Pruning::rhs_filter;
-    };
+
     auto get_schema_cols = [this]() { return relation_->GetSchema()->GetNumColumns(); };
 
     RegisterOption(config::kTableOpt(&input_table_));
@@ -96,14 +97,12 @@ void CFDFinder::RegisterOptions() {
                                          {support_independent_eq,
                                           {kMaxPatterns, kMinSupportGain, kMaxLevelSupportDrop,
                                            kCfdMinimumConfidence}},
-                                         {partial_fd_eq, {kMaximumG1}},
-                                         {rhs_filter_eq,
-                                          {kMaxPatterns, kMinSupportGain, kMaxLevelSupportDrop,
-                                           kCfdMinimumConfidence, kRhsIndices}}}));
+                                         {partial_fd_eq, {kMaximumG1}}}));
 }
 
 unsigned long long CFDFinder::ExecuteInternal() {
     using algos::cfdfinder::Preprocess;
+
     auto start_time = std::chrono::system_clock::now();
 
     auto [plis, inverted_plis, compressed_records] = Preprocess(relation_.get());
@@ -122,21 +121,128 @@ unsigned long long CFDFinder::ExecuteInternal() {
 
     PLICache pli_cache(limit_pli_cache_, relation_->GetSchema());
 
+    if (threads_num_ > 1) {
+        TraverseLatticePar(std::move(compressed_records_shared), std::move(inverted_cluster_maps),
+                           inverted_plis_shared, std::move(levels), plis_shared, pli_cache);
+    } else {
+        TraverseLatticeSeq(std::move(compressed_records_shared), std::move(inverted_cluster_maps),
+                           std::move(inverted_plis_shared), std::move(levels),
+                           std::move(plis_shared), pli_cache);
+    }
+
+    LOG_INFO("Total PLI computations: {}",
+             pli_cache.GetTotalMisses() + pli_cache.GetFullHits() + pli_cache.GetPartialHits());
+    LOG_INFO("Total PLI cache misses: {}", pli_cache.GetTotalMisses());
+    LOG_INFO("Total PLI cache hits: {}", pli_cache.GetFullHits() + pli_cache.GetPartialHits());
+    LOG_INFO("Total full PLI cache hits: {}", pli_cache.GetFullHits());
+    LOG_INFO("Total partial PLI cache hits: {}", pli_cache.GetPartialHits());
+
+    auto elapsed_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now() - start_time);
+    unsigned long long cfdfinder_millis = elapsed_milliseconds.count();
+    return cfdfinder_millis;
+}
+
+void CFDFinder::TraverseLatticePar(RowsPtr compressed_records_shared,
+                                   InvertedClusterMaps inverted_cluster_maps,
+                                   ColumnsPtr inverted_plis_shared, Lattice&& levels,
+                                   PLIsPtr plis_shared, PLICache& pli_cache) {
+    auto pruning_stategy_base = InitPruningStrategy(inverted_plis_shared);
+    auto result_receiver = InitResultStrategy();
+    auto expansion_stategy =
+            InitExpansionStrategy(compressed_records_shared, inverted_cluster_maps);
+
     size_t num_results = 0;
     int height = levels.size();
     --height;
     while (height >= 0) {
         auto start_level_time = std::chrono::system_clock::now();
-        Level& current_level = levels[height];
+        auto& current_level = levels[height];
+
+        boost::asio::thread_pool thread_pool(threads_num_);
+        size_t const batch_size = static_cast<size_t>(threads_num_) * 4;
+
         while (!current_level.empty()) {
-            Candidate candidate = current_level.extract(current_level.begin()).value();
+            std::vector<std::future<std::pair<Candidate, std::optional<PatternTableau>>>> futures;
+            futures.reserve(std::min(batch_size, current_level.size()));
+
+            for (size_t i = 0; i < batch_size && !current_level.empty(); ++i) {
+                auto candidate = current_level.extract(current_level.begin()).value();
+                auto lhs_pli = GetLhsPli(pli_cache, candidate.lhs_, *plis_shared);
+
+                auto proccess_candidate = [this, &inverted_plis_shared, &compressed_records_shared,
+                                           &expansion_stategy, candidate = std::move(candidate),
+                                           lhs_pli = std::move(lhs_pli),
+                                           pruning_strategy =
+                                                   pruning_stategy_base->Clone()]() mutable
+                        -> std::pair<Candidate, std::optional<PatternTableau>> {
+                    auto const inverted_pli_rhs = inverted_plis_shared->at(candidate.rhs_);
+                    pruning_strategy->StartNewTableau(candidate);
+                    PatternTableau pattern_tableau =
+                            GenerateTableau(candidate.lhs_, lhs_pli.get(), inverted_pli_rhs,
+                                            expansion_stategy, pruning_strategy);
+
+                    if (!pruning_strategy->ContinueGeneration(pattern_tableau)) {
+                        return {std::move(candidate), std::nullopt};
+                    }
+                    return {std::move(candidate), std::move(pattern_tableau)};
+                };
+
+                std::packaged_task<std::pair<Candidate, std::optional<PatternTableau>>()> task(
+                        std::move(proccess_candidate));
+                futures.push_back(task.get_future());
+                boost::asio::post(thread_pool, std::move(task));
+            }
+            for (auto& future : futures) {
+                auto [candidate, pattern_tableau_opt] = future.get();
+                if (!pattern_tableau_opt) {
+                    continue;
+                }
+                if (height > 0) {
+                    auto& target_level = levels[height - 1];
+                    for (auto&& subset : utils::GenerateLhsSubsets(candidate.lhs_)) {
+                        target_level.emplace(std::move(subset), candidate.rhs_);
+                    }
+                }
+                ++num_results;
+                result_receiver->ReceiveResult(std::move(candidate), *pattern_tableau_opt);
+            }
+        }
+
+        thread_pool.join();
+
+        auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now() - start_level_time);
+        LOG_INFO("Finished level {} ({}s), {} results.", height, elapsed_seconds.count(),
+                 num_results);
+        --height;
+    }
+
+    RegisterResults(std::move(result_receiver), std::move(inverted_cluster_maps));
+}
+
+void CFDFinder::TraverseLatticeSeq(RowsPtr compressed_records_shared,
+                                   InvertedClusterMaps inverted_cluster_maps,
+                                   ColumnsPtr inverted_plis_shared, Lattice&& levels,
+                                   PLIsPtr plis_shared, PLICache& pli_cache) {
+    auto pruning_stategy = InitPruningStrategy(inverted_plis_shared);
+    auto result_receiver = InitResultStrategy();
+    auto expansion_stategy =
+            InitExpansionStrategy(compressed_records_shared, inverted_cluster_maps);
+    size_t num_results = 0;
+    int height = levels.size();
+    --height;
+    while (height >= 0) {
+        auto start_level_time = std::chrono::system_clock::now();
+        auto& current_level = levels[height];
+        while (!current_level.empty()) {
+            auto candidate = current_level.extract(current_level.begin()).value();
             auto const lhs_pli = GetLhsPli(pli_cache, candidate.lhs_, *plis_shared);
             auto const& inverted_pli_rhs = inverted_plis_shared->at(candidate.rhs_);
 
             pruning_stategy->StartNewTableau(candidate);
-            auto pattern_tableau =
-                    GenerateTableau(candidate.lhs_, lhs_pli.get(), inverted_pli_rhs,
-                                    compressed_records_shared, expansion_stategy, pruning_stategy);
+            auto pattern_tableau = GenerateTableau(candidate.lhs_, lhs_pli.get(), inverted_pli_rhs,
+                                                   expansion_stategy, pruning_stategy);
 
             if (!pruning_stategy->ContinueGeneration(pattern_tableau)) {
                 continue;
@@ -158,17 +264,6 @@ unsigned long long CFDFinder::ExecuteInternal() {
     }
 
     RegisterResults(std::move(result_receiver), std::move(inverted_cluster_maps));
-    LOG_INFO("Total PLI computations: {}",
-             pli_cache.GetTotalMisses() + pli_cache.GetFullHits() + pli_cache.GetPartialHits());
-    LOG_INFO("Total PLI cache misses: {}", pli_cache.GetTotalMisses());
-    LOG_INFO("Total PLI cache hits: {}", pli_cache.GetFullHits() + pli_cache.GetPartialHits());
-    LOG_INFO("Total full PLI cache hits: {}", pli_cache.GetFullHits());
-    LOG_INFO("Total partial PLI cache hits: {}", pli_cache.GetPartialHits());
-
-    auto elapsed_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now() - start_time);
-    unsigned long long cfdfinder_millis = elapsed_milliseconds.count();
-    return cfdfinder_millis;
 }
 
 InvertedClusterMaps CFDFinder::BuildEnrichedStructures(PLIsPtr plis_shared,
@@ -181,16 +276,21 @@ InvertedClusterMaps CFDFinder::BuildEnrichedStructures(PLIsPtr plis_shared,
     inverted_cluster_maps.reserve(relation_->GetNumColumns());
 
     for (size_t i = 0; i < relation_->GetNumColumns(); ++i) {
-        auto enriched_pli = EnrichPLI(plis_shared->at(i), relation_->GetNumRows());
+        auto enriched_pli = utils::EnrichPLI(plis_shared->at(i), relation_->GetNumRows());
         InvertedClusterMap inverted_cluster_map;
 
+        std::unordered_map<int, typename ClusterMap::key_type> element_to_key;
+        for (auto const& [key, cluster] : cluster_maps[i]) {
+            for (int elem : cluster) {
+                element_to_key[elem] = key;
+            }
+        }
+
         for (size_t cluster_id = 0; cluster_id < enriched_pli.size(); ++cluster_id) {
-            int first_element = enriched_pli[cluster_id][0];
-            for (auto const& [key, cluster] : cluster_maps[i]) {
-                if (std::find(cluster.begin(), cluster.end(), first_element) != cluster.end()) {
-                    inverted_cluster_map[cluster_id] = key;
-                    break;
-                }
+            int first_element = enriched_pli[cluster_id].front();
+            auto it = element_to_key.find(first_element);
+            if (it != element_to_key.end()) {
+                inverted_cluster_map[cluster_id] = it->second;
             }
         }
 
@@ -218,29 +318,6 @@ void CFDFinder::RegisterResults(std::shared_ptr<ResultStrategy> result_receiver,
         cfd_collection_.emplace_back(std::move(lhs_v), std::move(rhs_c), result.patterns_,
                                      relation_->GetSharedPtrSchema(), inverted_cluster_maps);
     }
-}
-
-std::vector<Cluster> CFDFinder::EnrichPLI(model::PLI const* pli, int num_tuples) const {
-    std::unordered_set<int> existing_elements;
-    existing_elements.reserve(pli->GetSize());
-
-    auto const& original_clusters = pli->GetIndex();
-    for (auto const& cluster : original_clusters) {
-        existing_elements.insert(cluster.begin(), cluster.end());
-    }
-    size_t missing_count = num_tuples - existing_elements.size();
-
-    std::vector<Cluster> enriched_clusters;
-    enriched_clusters.reserve(original_clusters.size() + missing_count);
-    enriched_clusters.assign(original_clusters.begin(), original_clusters.end());
-
-    for (int i = 0; i < num_tuples; ++i) {
-        if (!existing_elements.contains(i)) {
-            enriched_clusters.emplace_back(1, i);
-        }
-    }
-
-    return enriched_clusters;
 }
 
 void CFDFinder::EnrichCompressedRecords(RowsPtr compressed_records,
@@ -314,9 +391,9 @@ CFDFinder::Lattice CFDFinder::GetLattice(PLIsPtr plis, RowsPtr compressed_record
     auto const positive_cover_tree =
             std::make_shared<hyfd::fd_tree::FDTree>(relation_->GetNumColumns());
 
-    Sampler sampler(plis, compressed_records, threads_num_);
+    Sampler sampler(plis, compressed_records);
     Inductor inductor(positive_cover_tree);
-    Validator validator(positive_cover_tree, plis, compressed_records, threads_num_);
+    Validator validator(positive_cover_tree, plis, compressed_records);
 
     hy::IdPairs comparison_suggestions;
 
@@ -347,7 +424,6 @@ CFDFinder::Lattice CFDFinder::GetLattice(PLIsPtr plis, RowsPtr compressed_record
             auto is_generalization = [&subset, rhs = fd.rhs_](auto const& candidate) {
                 return rhs == candidate.rhs_ && subset.is_subset_of(candidate.lhs_);
             };
-
             if (!std::ranges::any_of(candidates, is_generalization)) {
                 candidates.emplace_back(std::move(subset), fd.rhs_);
             }
@@ -358,6 +434,9 @@ CFDFinder::Lattice CFDFinder::GetLattice(PLIsPtr plis, RowsPtr compressed_record
     Lattice levels(relation_->GetNumColumns() - 1);
 
     for (auto&& candidate : candidates) {
+        // if (!rhs_filter_.empty() && !std::ranges::binary_search(rhs_filter_, candidate.rhs_)) {
+        //     continue;
+        // }
         size_t level = candidate.lhs_.count() - 1;
         levels[level].insert(std::move(candidate));
     }
@@ -367,25 +446,10 @@ CFDFinder::Lattice CFDFinder::GetLattice(PLIsPtr plis, RowsPtr compressed_record
 
 PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_attributes,
                                           model::PLI const* lhs_pli, Row const& inverted_pli_rhs,
-                                          RowsPtr compressed_records_shared,
                                           std::shared_ptr<ExpansionStrategy> expansion_strategy,
                                           std::shared_ptr<PruningStrategy> pruning_strategy) {
-    if (PatternDebugController::IsDebugEnabled()) {
-        PatternDebugController::ResetCounter();
-    }
-    auto null_pattern = expansion_strategy->GenerateNullPattern(lhs_attributes);
-
-    auto enriched_clusters = EnrichPLI(lhs_pli, relation_->GetNumRows());
-    std::list<Cluster> null_cover;
-
-    size_t violations = 0;
-    for (auto&& cluster : enriched_clusters) {
-        violations += utils::CalculateViolations(cluster, inverted_pli_rhs);
-        null_cover.push_back(std::move(cluster));
-    }
-    null_pattern.SetCover(std::move(null_cover));
-    null_pattern.SetNumKeepers(relation_->GetNumRows() - violations);
-    null_pattern.SetSupport(null_pattern.GetNumCover());
+    auto null_pattern =
+            expansion_strategy->GenerateNullPattern(lhs_attributes, lhs_pli, inverted_pli_rhs);
 
     Frontier frontier;
     frontier.Emplace(std::move(null_pattern));
@@ -395,60 +459,34 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
     while (!frontier.Empty() && !pruning_strategy->HasEnoughPatterns(tableau)) {
         auto current_pattern = frontier.Poll();
 
-        if (pruning_strategy->IsPatternWorthAdding(current_pattern)) {
-            pruning_strategy->AddPattern(current_pattern);
+        if (!pruning_strategy->TryAdding(current_pattern)) {
+            expansion_strategy->ExpandAndProcess(std::move(current_pattern), frontier,
+                                                 inverted_pli_rhs, *pruning_strategy);
+            continue;
+        }
 
-            Frontier new_frontier;
+        Frontier new_frontier;
 
-            while (!frontier.Empty()) {
-                auto pattern = frontier.Poll();
-                pattern.UpdateCover(current_pattern);
+        boost::dynamic_bitset<> used_rows(relation_->GetNumRows());
+        for (auto row_id : current_pattern.GetCover() | std::views::join) {
+            used_rows.set(row_id);
+        }
+
+        while (!frontier.Empty()) {
+            auto pattern = frontier.Poll();
+
+            pattern.UpdateCover(used_rows);
+            if (pruning_strategy->IsPatternWorthConsidering(pattern.GetSupport())) {
                 pattern.UpdateKeepers(inverted_pli_rhs);
-                if (pruning_strategy->IsPatternWorthConsidering(pattern)) {
-                    new_frontier.Emplace(std::move(pattern));
-                }
-            }
-
-            tableau.push_back(std::move(current_pattern));
-            frontier.Swap(new_frontier);
-
-        } else {
-            pruning_strategy->ExpandPattern(current_pattern);
-            for (auto&& child : expansion_strategy->GetChildPatterns(current_pattern)) {
-                if (!pruning_strategy->ValidForProcessing(child)) {
-                    continue;
-                }
-                pruning_strategy->ProcessChild(child);
-                if (frontier.Contains(child)) {
-                    continue;
-                }
-                child.SetCover(DetermineCover(child, current_pattern, *compressed_records_shared));
-                child.UpdateKeepers(inverted_pli_rhs);
-                child.SetSupport(child.GetNumCover());
-
-                if (pruning_strategy->IsPatternWorthConsidering(child)) {
-                    frontier.Emplace(std::move(child));
-                }
+                new_frontier.Emplace(std::move(pattern));
             }
         }
+
+        tableau.push_back(std::move(current_pattern));
+        frontier.Swap(new_frontier);
     }
 
     return PatternTableau(std::move(tableau), relation_->GetNumRows());
-}
-
-std::list<Cluster> CFDFinder::DetermineCover(Pattern const& child_pattern,
-                                             Pattern const& current_pattern,
-                                             Rows const& records) const {
-    std::list<Cluster> result;
-    auto const& cover = current_pattern.GetCover();
-
-    for (auto const& cluster : cover) {
-        auto const& tuple = records[cluster[0]];
-        if (child_pattern.Matches(tuple)) {
-            result.push_back(cluster);
-        }
-    }
-    return result;
 }
 
 std::shared_ptr<ExpansionStrategy> CFDFinder::InitExpansionStrategy(
@@ -457,7 +495,10 @@ std::shared_ptr<ExpansionStrategy> CFDFinder::InitExpansionStrategy(
         case Expansion::constant:
             return std::make_shared<ConstantExpansion>(std::move(pli_records));
         case Expansion::range:
-            return std::make_shared<RangePatternExpansion>(inverted_cluster_maps);
+            return std::make_shared<RangePatternExpansion>(inverted_cluster_maps,
+                                                           std::move(pli_records));
+            return std::make_shared<RangePatternExpansion>(inverted_cluster_maps,
+                                                           std::move(pli_records));
         case Expansion::negative_constant:
             return std::make_shared<PositiveNegativeConstantExpansion>(std::move(pli_records));
         default:
@@ -471,15 +512,12 @@ std::shared_ptr<PruningStrategy> CFDFinder::InitPruningStrategy(ColumnsPtr inver
             return std::make_shared<LegacyPruning>(min_support_, min_confidence_,
                                                    relation_->GetNumRows());
         case Pruning::support_independent:
-            return std::make_shared<SupportIndependentPruning>(
-                    max_patterns_, min_support_gain_, max_level_support_drop_, min_confidence_);
+            return std::make_shared<SupportIndependentPruning>(max_patterns_, min_support_gain_,
+                                                               max_level_support_drop_,
+                                                               min_confidence_, threads_num_);
         case Pruning::partial_fd:
             return std::make_shared<PartialFdPruning>(relation_->GetNumRows(), max_g1_,
                                                       std::move(inverted_plis));
-        case Pruning::rhs_filter:
-            return std::make_shared<RhsFilterPruning>(max_patterns_, min_support_gain_,
-                                                      max_level_support_drop_, min_confidence_,
-                                                      rhs_filter_);
         default:
             return std::make_shared<LegacyPruning>(min_support_, min_confidence_,
                                                    relation_->GetNumRows());

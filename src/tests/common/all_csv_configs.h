@@ -11,6 +11,12 @@ extern CSVConfig const kAnimalsBeverages;
 extern CSVConfig const kBernoulliRelation;
 extern CSVConfig const kBreastCancer;
 extern CSVConfig const kBridges;
+extern CSVConfig const kWine;
+extern CSVConfig const kNCVOTER;
+extern CSVConfig const kNursery;
+extern CSVConfig const k2019;
+extern CSVConfig const kTaxon;
+
 extern CSVConfig const kCIPublicHighway;
 extern CSVConfig const kCIPublicHighway10k;
 extern CSVConfig const kCIPublicHighway20attr55k;

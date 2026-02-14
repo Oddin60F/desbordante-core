@@ -23,7 +23,7 @@ def explain_cfd_concept():
     """Explain what CFDs are with a real-world example."""
     print(f"{Colors.BLUE_FG}=== Explain Conditional Functional Dependencies ==={Colors.RESET}\n")
     
-    print("Conditional Functional Dependencies (CFD) generalize traditional functional dependencies (FD)")
+    print("Conditional Functional Dependencies (CFD) generalize traditional Functional Dependencies (FD)")
     print("by adding conditions to attribute values via the pattern tableau.")
     print("This allows you to find dependencies that are not performed for the entire table,")
     print("but only for a subset of rows that meet certain conditions in the data.")

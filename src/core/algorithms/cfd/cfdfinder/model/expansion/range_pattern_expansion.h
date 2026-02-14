@@ -12,13 +12,16 @@ namespace algos::cfdfinder {
 class RangePatternExpansion : public ExpansionStrategy {
 private:
     using SortedClustersId = std::vector<ClusterId>;
-    using SortedClustersIdPtr = std::shared_ptr<SortedClustersId>;
+    using SortedClustersIdPtr = std::shared_ptr<SortedClustersId const>;
     std::vector<SortedClustersIdPtr> sorted_clusters_ids_;
+    Entries GenerateNullEntries(BitSet const& attributes) const override;
 
 public:
-    explicit RangePatternExpansion(InvertedClusterMaps const& inverted_cluster_maps);
-    Pattern GenerateNullPattern(BitSet const& attributes) const override;
-    std::list<Pattern> GetChildPatterns(Pattern const& current_pattern) const override;
+    RangePatternExpansion(InvertedClusterMaps const& inverted_cluster_maps,
+                          RowsPtr&& compressed_records);
+
+    void ExpandAndProcess(Pattern&& parent_pattern, Frontier& frontier, Row const& inverted_pli_rhs,
+                          PruningStrategy& pruning_strategy) override;
 };
 
 }  // namespace algos::cfdfinder

@@ -119,7 +119,7 @@ if(DESBORDANTE_BUILD_NATIVE)
 endif()
 
 # RELEASE build options
-string(JOIN ";" RELEASE_BUILD_OPTS "${BUILD_OPTS}" "-O3")
+string(JOIN ";" RELEASE_BUILD_OPTS "${BUILD_OPTS}" "-g" "-O3")
 
 set(DEBUG_BUILD_OPTS "${BUILD_OPTS}")
 
@@ -132,7 +132,6 @@ string(
     "-g"
     "-Wall"
     "-Wextra"
-    "-Werror"
     "-fno-omit-frame-pointer"
     "-fno-optimize-sibling-calls"
 )

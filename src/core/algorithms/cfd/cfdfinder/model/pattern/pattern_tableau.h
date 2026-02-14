@@ -1,9 +1,12 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <vector>
 
+#include "core/algorithms/cfd/cfdfinder/model/pattern/entry.h"
 #include "core/algorithms/cfd/cfdfinder/model/pattern/pattern.h"
+#include "core/algorithms/cfd/cfdfinder/model/pattern/variable_entry.h"
 
 namespace algos::cfdfinder {
 class PatternTableau {
@@ -19,6 +22,10 @@ public:
         : patterns_(std::move(patterns)), num_tuples_(num_tuples) {}
 
     std::vector<Pattern> const& GetPatterns() const {
+        return patterns_;
+    };
+
+    std::vector<Pattern>& GetPatterns() {
         return patterns_;
     };
 

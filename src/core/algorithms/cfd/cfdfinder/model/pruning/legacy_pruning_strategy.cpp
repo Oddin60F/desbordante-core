@@ -21,36 +21,63 @@ void LegacyPruning::AddPattern(Pattern const& pattern) {
 }
 
 void LegacyPruning::ExpandPattern(Pattern const& pattern) {
-    visited_.insert(pattern);
+    visited_.insert(pattern.GetEntries());
 }
 
 bool LegacyPruning::HasEnoughPatterns([[maybe_unused]] std::vector<Pattern> const& tableau) {
     return cumulative_support_ >= min_support_ * num_tuples_;
 }
 
-bool LegacyPruning::IsPatternWorthConsidering(Pattern const& pattern) {
-    return pattern.GetSupport() > 0;
+bool LegacyPruning::IsPatternWorthConsidering(double new_support) {
+    return new_support > 0;
 }
 
 bool LegacyPruning::IsPatternWorthAdding(Pattern const& pattern) {
     return pattern.GetConfidence() >= min_confidence_;
 }
 
-bool LegacyPruning::ValidForProcessing(Pattern const& child) {
-    std::list<Pattern> parent_patterns;
-    auto const& entries = child.GetEntries();
+bool LegacyPruning::ValidForProcessing(Entries const& entries) {
+    size_t count = 0;
+    bool yes = true;
     for (size_t i = 0; i < entries.size(); ++i) {
         if (entries[i].entry->IsConstant()) {
+            ++count;
+            if (!yes) {
+                continue;
+            }
             auto new_entries = entries;
             new_entries[i].entry = std::make_shared<VariableEntry>();
-            parent_patterns.emplace_back(std::move(new_entries));
+            yes = visited_.contains(new_entries);
         }
     }
 
-    return std::ranges::all_of(parent_patterns,
-                               [this](auto const& parent) { return visited_.contains(parent); });
+    PatternDebugController::Plus(count);
+    return yes;
 }
 
+// bool LegacyPruning::ValidForProcessing(Pattern const& child) {
+//     auto entries = child.GetEntries();
+//     std::shared_ptr<Entry> variable_entry = std::make_shared<VariableEntry>();
+//     std::shared_ptr<Entry> buff_entry;
+//     bool yes = true;
+//     size_t count = 0;
+//     for (size_t i = 0; i < entries.size(); ++i) {
+//         if (entries[i].entry->IsConstant()) {
+//             ++count;
+
+//             if (!yes) {
+//                 continue;
+//             }
+//             buff_entry = std::move(entries[i].entry);
+//             entries[i].entry = std::move(variable_entry);
+//             yes = visited_.contains(entries);
+//             variable_entry = std::move(entries[i].entry);
+//             entries[i].entry = std::move(buff_entry);
+//         }
+//     }
+//     PatternDebugController::Plus(count);
+//     return yes;
+// }
 bool LegacyPruning::ContinueGeneration(PatternTableau const& currentTableau) {
     return currentTableau.GetSupport() >= min_support_ &&
            currentTableau.GetConfidence() >= min_confidence_;

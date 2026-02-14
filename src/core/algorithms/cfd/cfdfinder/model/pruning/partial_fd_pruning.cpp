@@ -3,6 +3,8 @@
 #include <cmath>
 #include <unordered_map>
 
+#include <boost/unordered/unordered_flat_map.hpp>
+
 #include "core/algorithms/fd/hycommon/util/pli_util.h"
 
 namespace algos::cfdfinder {
@@ -18,7 +20,7 @@ unsigned long long PartialFdPruning::CalculateViolations(Pattern const& pattern)
     for (auto const& cluster : pattern.GetCover()) {
         size_t cluster_size = cluster.size();
         std::unordered_map<int, size_t> value_counts;
-
+        value_counts.reserve(cluster_size);  // Критически важно!
         for (auto index : cluster) {
             auto value = inverted_pli_rhs_[index];
             if (!algos::hy::PLIUtil::IsSingletonCluster(value)) {

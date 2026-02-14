@@ -7,12 +7,11 @@
 namespace algos::cfdfinder {
 class PositiveNegativeConstantExpansion : public ConstantExpansion {
 private:
-    std::list<Pattern> GetChildPatterns(Pattern const& pattern,
-                                        Cluster const& cluster) const override;
-
 public:
     explicit PositiveNegativeConstantExpansion(RowsPtr&& compressed_records)
         : ConstantExpansion(std::move(compressed_records)) {}
+
+    std::vector<Child> GetChildPatterns(Pattern const& current_pattern) const override;
 };
 
 }  // namespace algos::cfdfinder

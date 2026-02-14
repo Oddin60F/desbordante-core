@@ -26,6 +26,32 @@
 #include "core/config/thread_number/type.h"
 
 namespace algos::cfdfinder {
+class ColumnMajorRecords {
+private:
+    std::vector<std::vector<model::ColumnIndex>> columns_;
+
+public:
+    ColumnMajorRecords(Rows const& original_rows) {
+        if (original_rows.empty()) return;
+
+        size_t num_rows = original_rows.size();
+        size_t num_cols = original_rows[0].size();
+
+        columns_.resize(num_cols);
+
+        for (size_t col = 0; col < num_cols; ++col) {
+            columns_[col].reserve(num_rows);
+
+            for (size_t row = 0; row < num_rows; ++row) {
+                columns_[col].push_back(original_rows[row][col]);
+            }
+        }
+    }
+
+    std::vector<model::ColumnIndex> const& get_column(size_t col) const {
+        return columns_[col];
+    }
+};
 
 class CFDFinder : public Algorithm {
 private:
@@ -41,7 +67,6 @@ private:
     Expansion expansion_strategy_ = Expansion::constant;
     Pruning pruning_strategy_ = Pruning::legacy;
     Result result_strategy_ = Result::lattice;
-
     double min_confidence_;
     double min_support_;
     double max_g1_;
@@ -49,6 +74,7 @@ private:
     double max_level_support_drop_;
     unsigned int max_patterns_;
     unsigned int limit_pli_cache_;
+    bool build_rhs_condition_ = false;
 
     std::list<CFD> cfd_collection_;
     std::unique_ptr<CFDFinderRelationData> relation_;
@@ -67,12 +93,15 @@ private:
 
     PatternTableau GenerateTableau(boost::dynamic_bitset<> const& lhs_attributes,
                                    model::PLI const* lhs_pli, Row const& inverted_pli_rhs,
-                                   RowsPtr compressed_records_shared,
+                                   ColumnMajorRecords const& compressed_records_shared,
                                    std::shared_ptr<ExpansionStrategy> expansion_strategy,
-                                   std::shared_ptr<PruningStrategy> pruning_strategy);
+                                   std::shared_ptr<PruningStrategy> pruning_strategy,
+                                   RowsPtr records);
 
-    std::list<Cluster> DetermineCover(Pattern const& child_pattern, Pattern const& current_pattern,
-                                      Rows const& pli_records) const;
+    // std::vector<Cluster> DetermineCover(Pattern const& child_pattern,
+    //                                     Pattern const& current_pattern,
+    //                                     ColumnMajorRecords const& pli_records,
+    //                                     size_t replaced_pos) const;
 
     std::shared_ptr<ExpansionStrategy> InitExpansionStrategy(
             RowsPtr pli_records, InvertedClusterMaps const& inverted_cluster_maps);
@@ -82,6 +111,14 @@ private:
                                                 RowsPtr compressed_records_shared) const;
     void RegisterResults(std::shared_ptr<ResultStrategy> result_receiver,
                          InvertedClusterMaps inverted_cluster_maps);
+    void TraverseLatticePar(RowsPtr compressed_records_shared,
+                            InvertedClusterMaps inverted_cluster_maps,
+                            ColumnsPtr inverted_plis_shared, Lattice&& levels, PLIsPtr plis_shared,
+                            PLICache& pli_cache);
+    void TraverseLatticeSeq(RowsPtr compressed_records_shared,
+                            InvertedClusterMaps inverted_cluster_maps,
+                            ColumnsPtr inverted_plis_shared, Lattice&& levels, PLIsPtr plis_shared,
+                            PLICache& pli_cache);
 
 protected:
     void MakeExecuteOptsAvailable() override;

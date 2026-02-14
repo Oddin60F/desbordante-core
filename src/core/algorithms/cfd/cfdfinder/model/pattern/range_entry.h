@@ -83,5 +83,20 @@ public:
                " - " + (!upper_bound.empty() ? upper_bound : std::string(kNullRepresentation)) +
                "]";
     }
+
+    std::pair<boost::dynamic_bitset<>, size_t> GetCoverMask(
+            std::vector<Cluster> const& parent_cover,
+            std::vector<size_t> const& column) const override {
+        boost::dynamic_bitset<> valid_cover_mask(parent_cover.size());
+        size_t new_support = 0;
+        for (size_t clusted_id = 0; clusted_id < parent_cover.size(); ++clusted_id) {
+            if (RangeEntry::Matches(column[clusted_id])) {
+                valid_cover_mask.set(clusted_id);
+                new_support += parent_cover[clusted_id].size();
+            }
+        }
+
+        return {std::move(valid_cover_mask), new_support};
+    }
 };
 }  // namespace algos::cfdfinder

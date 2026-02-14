@@ -2,8 +2,9 @@
 
 #include <compare>
 #include <cstddef>
-#include <list>
 #include <ranges>
+#include <unordered_set>
+#include <vector>
 
 #include "core/algorithms/cfd/cfdfinder/model/pattern/pattern_item.h"
 #include "core/algorithms/cfd/cfdfinder/types/cluster.h"
@@ -14,7 +15,7 @@ namespace algos::cfdfinder {
 class PatternDebugController {
 private:
     inline static bool debug_enabled_ = false;
-    inline static unsigned long long counter_ = 0;
+    inline static unsigned long long thread_local counter_ = 0;
 
 public:
     static bool IsDebugEnabled() noexcept {
@@ -32,12 +33,16 @@ public:
     static unsigned long long Next() {
         return counter_++;
     }
+
+    static void Plus(size_t count) {
+        counter_ += count;
+    }
 };
 
 class Pattern {
 private:
     Entries entries_;
-    std::list<Cluster> cover_;
+    std::vector<Cluster> cover_;
     double support_;
     size_t num_keepers_;
     unsigned long long number_;
@@ -76,8 +81,7 @@ public:
         return !(*this < other);
     }
 
-    bool Matches(Row const& tuple) const;
-    void UpdateCover(Pattern const& pattern);
+    double UpdateCover(std::unordered_set<int> const& used_rows);
     void UpdateKeepers(Row const& inverted_pli_rhs);
     size_t GetNumCover() const;
 
@@ -98,17 +102,18 @@ public:
         return num_cover == 0 ? 0 : static_cast<double>(num_keepers_) / num_cover;
     }
 
-    std::list<Cluster> const& GetCover() const noexcept {
+    std::vector<Cluster> const& GetCover() const noexcept {
         return cover_;
     }
 
-    void SetCover(std::list<Cluster>&& new_cover) {
+    void SetCover(std::vector<Cluster>&& new_cover) {
         cover_ = std::move(new_cover);
 
         if (PatternDebugController::IsDebugEnabled()) {
             std::ranges::for_each(cover_, [](auto& cluster) { std::ranges::sort(cluster); });
-            cover_.sort([](auto const& a, auto const& b) { return a.front() < b.front(); });
+            std::ranges::sort(cover_);
         }
+        support_ = GetNumCover();
     }
 
     size_t GetNumKeepers() const noexcept {

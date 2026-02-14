@@ -2,8 +2,6 @@
 #include <memory>
 #include <vector>
 
-#include <boost/functional/hash.hpp>
-
 #include "core/algorithms/cfd/cfdfinder/model/pattern/entry.h"
 
 namespace algos::cfdfinder {
@@ -27,12 +25,10 @@ template <>
 struct std::hash<algos::cfdfinder::Entries> {
     size_t operator()(algos::cfdfinder::Entries const& entries) const {
         size_t seed = 0;
-
         for (auto const& [id, entry] : entries) {
-            boost::hash_combine(seed, id);
-            boost::hash_combine(seed, entry->Hash());
+            seed = seed * 31 + id;
+            seed = seed * 31 + entry->Hash();
         }
-
         return seed;
     }
 };

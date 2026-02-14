@@ -17,30 +17,23 @@ Pattern ConstantExpansion::GenerateNullPattern(BitSet const& attributes) const {
     return Pattern(std::move(entries));
 }
 
-std::list<Pattern> ConstantExpansion::GetChildPatterns(Pattern const& current_pattern) const {
-    std::list<Pattern> result;
-    for (auto const& cluster : current_pattern.GetCover()) {
-        result.splice(result.end(), GetChildPatterns(current_pattern, cluster));
-    }
-    return result;
-}
+std::vector<ExpansionStrategy::Child> ConstantExpansion::GetChildPatterns(
+        Pattern const& current_pattern) const {
+    std::vector<Child> result;
+    auto const& entries = current_pattern.GetEntries();
 
-std::list<Pattern> ConstantExpansion::GetChildPatterns(Pattern const& pattern,
-                                                       Cluster const& cluster) const {
-    std::list<Pattern> results;
-    auto const& entries = pattern.GetEntries();
     for (size_t i = 0; i < entries.size(); ++i) {
-        if (entries[i].entry->IsConstant()) {
+        auto const& item = entries[i];
+        if (item.entry->IsConstant()) {
             continue;
         }
-        int value = (*compressed_records_)[cluster[0]][entries[i].id];
+        for (auto const& cluster : current_pattern.GetCover()) {
+            int value = (*compressed_records_)[cluster[0]][item.id];
 
-        auto new_entries = entries;
-        new_entries[i].entry = std::make_shared<ConstantEntry>(value);
-        results.emplace_back(std::move(new_entries));
+            result.emplace_back(i, std::make_shared<ConstantEntry>(value));
+        }
     }
-
-    return results;
+    return result;
 }
 
 }  // namespace algos::cfdfinder

@@ -13,7 +13,7 @@ private:
     double min_confidence_;
     double cumulative_support_;
     size_t num_tuples_;
-    std::unordered_set<Pattern> visited_;
+    std::unordered_set<Entries> visited_;
 
 public:
     LegacyPruning(double min_support, double min_confidence, size_t num_tuples)
@@ -28,16 +28,18 @@ public:
 
     void ExpandPattern(Pattern const& pattern) override;
 
-    void ProcessChild([[maybe_unused]] Pattern& child) override {}
-
     bool HasEnoughPatterns([[maybe_unused]] std::vector<Pattern> const& tableau) override;
 
-    bool IsPatternWorthConsidering(Pattern const& pattern) override;
+    bool IsPatternWorthConsidering(double new_support) override;
 
     bool IsPatternWorthAdding(Pattern const& pattern) override;
 
-    bool ValidForProcessing(Pattern const& child) override;
+    bool ValidForProcessing(Entries const& entries) override;
 
     bool ContinueGeneration(PatternTableau const& currentTableau) override;
+
+    std::shared_ptr<PruningStrategy> Clone() const override {
+        return std::make_shared<LegacyPruning>(*this);
+    }
 };
 }  // namespace algos::cfdfinder

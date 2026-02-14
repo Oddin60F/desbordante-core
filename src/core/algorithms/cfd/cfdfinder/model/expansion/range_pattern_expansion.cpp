@@ -45,8 +45,9 @@ Pattern RangePatternExpansion::GenerateNullPattern(BitSet const& attributes) con
     return Pattern(std::move(entries));
 }
 
-std::list<Pattern> RangePatternExpansion::GetChildPatterns(Pattern const& current_pattern) const {
-    std::list<Pattern> result;
+std::vector<ExpansionStrategy::Child> RangePatternExpansion::GetChildPatterns(
+        Pattern const& current_pattern) const {
+    std::vector<Child> result;
     auto const& entries = current_pattern.GetEntries();
 
     for (size_t i = 0; i < entries.size(); ++i) {
@@ -54,16 +55,12 @@ std::list<Pattern> RangePatternExpansion::GetChildPatterns(Pattern const& curren
 
         auto lentry = std::static_pointer_cast<RangeEntry>(range_entry->Clone());
         if (lentry->IncreaseLowerBound()) {
-            auto new_entries = entries;
-            new_entries[i].entry = lentry;
-            result.emplace_back(std::move(new_entries));
+            result.emplace_back(i, std::move(lentry));
         }
 
         auto rentry = std::static_pointer_cast<RangeEntry>(range_entry->Clone());
         if (rentry->DecreaseUpperBound()) {
-            auto new_entries = entries;
-            new_entries[i].entry = rentry;
-            result.emplace_back(std::move(new_entries));
+            result.emplace_back(i, std::move(lentry));
         }
     }
 

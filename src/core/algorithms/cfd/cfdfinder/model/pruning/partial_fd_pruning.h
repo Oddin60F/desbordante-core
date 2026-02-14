@@ -31,13 +31,11 @@ public:
 
     void ExpandPattern([[maybe_unused]] Pattern const& pattern) override {}
 
-    void ProcessChild([[maybe_unused]] Pattern& child) override {}
-
     bool HasEnoughPatterns(std::vector<Pattern> const& tableau) override {
         return !tableau.empty();
     }
 
-    bool IsPatternWorthConsidering([[maybe_unused]] Pattern const& pattern) override {
+    bool IsPatternWorthConsidering([[maybe_unused]] double new_support) override {
         return false;
     }
 
@@ -45,12 +43,16 @@ public:
         return CalculateG1(pattern) <= max_g1_;
     }
 
-    bool ValidForProcessing([[maybe_unused]] Pattern const& child) override {
+    bool ValidForProcessing([[maybe_unused]] Entries const& entries) override {
         return false;
     }
 
     bool ContinueGeneration(PatternTableau const& current_tableau) override {
         return current_tableau.GetPatterns().size() == 1;
+    }
+
+    std::shared_ptr<PruningStrategy> Clone() const override {
+        return std::make_shared<PartialFdPruning>(*this);
     }
 };
 

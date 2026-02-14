@@ -4,6 +4,10 @@
 #include <string>
 #include <string_view>
 
+#include <boost/dynamic_bitset.hpp>
+
+#include "core/algorithms/cfd/cfdfinder/types/cluster.h"
+#include "core/algorithms/cfd/cfdfinder/types/hyfd_types.h"
 #include "core/algorithms/cfd/cfdfinder/types/inverted_cluster_maps.h"
 
 namespace algos::cfdfinder {
@@ -19,6 +23,8 @@ public:
     virtual size_t Hash() const = 0;
     virtual bool operator==(Entry const& other) const = 0;
     virtual bool IsConstant() const = 0;
+    virtual std::pair<boost::dynamic_bitset<>, size_t> GetCoverMask(
+            std::vector<Cluster> const& parent_cover, std::vector<size_t> const& column) const = 0;
     virtual std::string ToString(InvertedClusterMap const& cluster_map) const = 0;
 };
 

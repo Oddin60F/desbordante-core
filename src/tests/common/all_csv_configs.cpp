@@ -13,6 +13,9 @@ CSVConfig CreateCsvConfig(std::string_view filename, char separator, bool has_he
 }
 }  // namespace
 
+CSVConfig const kWine = CreateCsvConfig("wine.csv", ',', true);
+CSVConfig const kNCVOTER = CreateCsvConfig("ncvoter.csv", ',', true);
+
 CSVConfig const kAbalone = CreateCsvConfig("abalone.csv", ',', false);
 CSVConfig const kACShippingDates = CreateCsvConfig("ACShippingDates.csv", ',', true);
 CSVConfig const kAdult = CreateCsvConfig("adult.csv", ';', false);

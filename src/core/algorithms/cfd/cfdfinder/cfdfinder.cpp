@@ -498,19 +498,20 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
 
             Frontier new_frontier;
 
-            std::unordered_set<int> used_rows;
-            used_rows.reserve(current_pattern.GetNumCover());
+            boost::dynamic_bitset<> used_rows(relation_->GetNumRows());
 
             for (auto const& pcluster : current_pattern.GetCover()) {
-                used_rows.insert(pcluster.begin(), pcluster.end());
+                for (auto tuple : pcluster) {
+                    used_rows.set(tuple);
+                }
             }
 
             while (!frontier.Empty()) {
                 auto pattern = frontier.Poll();
 
                 double new_support = pattern.UpdateCover(used_rows);
-                pattern.UpdateKeepers(inverted_pli_rhs);
                 if (pruning_strategy->IsPatternWorthConsidering(new_support)) {
+                    pattern.UpdateKeepers(inverted_pli_rhs);
                     new_frontier.Emplace(std::move(pattern));
                 }
             }

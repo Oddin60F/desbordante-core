@@ -9,9 +9,9 @@
 
 namespace algos::cfdfinder {
 
-double Pattern::UpdateCover(std::unordered_set<int> const& used_rows) {
+double Pattern::UpdateCover(boost::dynamic_bitset<> const& used_rows) {
     for (auto& cluster : cover_) {
-        std::erase_if(cluster, [&used_rows](int element) { return used_rows.contains(element); });
+        std::erase_if(cluster, [&used_rows](int element) { return used_rows.test(element); });
 
         if (PatternDebugController::IsDebugEnabled()) {
             std::ranges::sort(cluster);

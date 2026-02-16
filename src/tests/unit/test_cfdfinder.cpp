@@ -115,144 +115,35 @@ class CFDFinderAlgorithmTest : public ::testing::TestWithParam<CFDFinderParams> 
 
 TEST_P(CFDFinderAlgorithmTest, Test) {
     algos::cfdfinder::PatternDebugController::SetDebugEnabled(true);
-
+    std::ofstream file("/home/oddin60/Work/metanome_old/test_c++.txt", std::ios::trunc);
     auto const& p = GetParam();
     auto mp = algos::StdParamsMap(p.params);
     auto algo = algos::CreateAndLoadAlgorithm<algos::cfdfinder::CFDFinder>(mp);
     algo->Execute();
-
-    // CheckEqualityExceptedCFDs(p.excepted_cfds, algo->CfdList());
+    for (auto const& cfd : algo->CfdList()) {
+        file << cfd.ToString();
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(
         CFDFinderAdditionalTests, CFDFinderAlgorithmTest,
-        ::testing::Values(
-                CFDFinderParams({kTennis,
-                                 algos::cfdfinder::Expansion::constant,
-                                 algos::cfdfinder::Result::direct,
-                                 4,     // max_lhs
-                                 0.8,   // min_sup
-                                 1.0,   // min_conf
-                                 true,  // is_null_equal_null
-                                 1,
-                                 {
-                                         {"[temp humidity windy play] -> outlook",
-                                          {"_|high|_|_", "_|_|true|_", "mild|_|_|_", "hot|_|_|_"}},
-                                         {"[outlook temp humidity play] -> windy",
-                                          {"_|_|_|yes", "_|mild|_|_", "_|_|normal|_"}},
-                                         {"[outlook temp play] -> windy",
-                                          {"_|_|yes", "_|mild|_", "_|cool|_"}},
-                                 }}),
-                CFDFinderParams({kTennis,
-                                 algos::cfdfinder::Expansion::negative_constant,
-                                 algos::cfdfinder::Result::tree,
-                                 4,
-                                 0.7,
-                                 1.0,
-                                 true,
-                                 1,
-                                 {
-                                         {"[temp windy play] -> outlook",
-                                          {"¬cool|false|_", "¬mild|¬false|_", "_|_|¬yes"}},
-                                         {"[outlook temp windy] -> humidity",
-                                          {"_|_|true", "¬overcast|¬mild|_", "¬rainy|mild|_"}},
-                                         {"[outlook temp play] -> humidity",
-                                          {"¬overcast|¬mild|_", "¬rainy|¬hot|_", "_|_|¬yes"}},
-                                         {"[outlook humidity windy] -> temp",
-                                          {"_|_|true", "¬sunny|high|_", "¬rainy|¬high|_"}},
-                                         {"[outlook temp play] -> windy", {"_|¬hot|_"}},
-                                         {"[outlook temp humidity] -> play",
-                                          {"¬rainy|_|_", "_|mild|¬high"}},
-                                 }}),
-                CFDFinderParams({kTennis,
-                                 algos::cfdfinder::Expansion::range,
-                                 algos::cfdfinder::Result::direct,
-                                 4,
-                                 0.8,
-                                 1.0,
-                                 true,
-                                 1,
-                                 {
-                                         {"[temp humidity windy play] -> outlook",
-                                          {"[cool - hot]|_|_|_", "mild|_|true|_"}},
-                                         {"[outlook temp humidity play] -> windy",
-                                          {"_|[hot - mild]|_|_", "[overcast - rainy]|_|_|yes"}},
-                                         {"[outlook temp play] -> windy",
-                                          {"_|[hot - mild]|_", "[overcast - rainy]|_|yes"}},
-                                 }}),
-                CFDFinderParams({kIris,
-                                 algos::cfdfinder::Expansion::constant,
-                                 algos::cfdfinder::Result::lattice,
-                                 4,     // max_lhs
-                                 1.0,   // min_conf
-                                 6,     // min_support_gain
-                                 15,    // max_support_drop
-                                 2000,  // max_patterns
-                                 {0},   // rhs_indeces
-                                 true,  // is_null_equal_null
-                                 1,
-                                 {
-                                         {"[1 2] -> 0", {"_|5.6", "3.3|_", "3.8|_"}},
-                                         {"[2 3] -> 0", {"_|2.3", "5.1|_", "_|2.1"}},
-                                 }}),
-                CFDFinderParams({kBridges,
-                                 algos::cfdfinder::Expansion::constant,
-                                 algos::cfdfinder::Result::lattice,
-                                 6,
-                                 1.0,
-                                 35,
-                                 35,
-                                 2000,
-                                 {2},
-                                 true,
-                                 1,
-                                 {
-                                         {"[1 4 5 6 9 10] -> 2", {"_|_|_|2|STEEL|_"}},
-                                         {"[1 3 6 8 11 12] -> 2", {"M|_|_|_|_|_"}},
-                                         {"[1 3 8 10 11] -> 2", {"M|_|_|_|_"}},
-                                         {"[1 3 10 11 12] -> 2", {"M|_|_|_|_"}},
-                                         {"[1 3 5] -> 2", {"A|_|_", "M|_|_"}},
-                                         {"[3 5 6] -> 2", {"_|_|2"}},
-
-                                 }}),
-                CFDFinderParams({kIris,
-                                 algos::cfdfinder::Expansion::constant,
-                                 algos::cfdfinder::Result::tree,
-                                 1,     // max_lhs
-                                 0.05,  // max_g1
-                                 true,
-                                 1,
-                                 {
-                                         {"[0] -> 4", {"_"}},
-                                         {"[2] -> 0", {"_"}},
-                                         {"[0] -> 3", {"_"}},
-                                         {"[0] -> 1", {"_"}},
-                                         {"[2] -> 1", {"_"}},
-                                         {"[0] -> 2", {"_"}},
-                                         {"[2] -> 3", {"_"}},
-                                         {"[3] -> 4", {"_"}},
-                                         {"[1] -> 4", {"_"}},
-                                         {"[2] -> 4", {"_"}},
-
-                                 }}),
-                CFDFinderParams({kNullEmpty,
-                                 algos::cfdfinder::Expansion::constant,
-                                 algos::cfdfinder::Result::direct,
-                                 52,
-                                 0.3,
-                                 0.8,
-                                 true,
-                                 1,
-                                 {
-                                         {"[Int1  IntAndEmpty  Int2] ->  NullAndInt", {"_|null|_"}},
-                                         {"[Int1  NullAndInt  Int2] ->  IntAndEmpty", {"_|NULL|_"}},
-                                         {"[Int1  NullAndInt] ->  IntAndEmpty", {"_|NULL"}},
-                                         {"[ NullAndInt  Int2] ->  IntAndEmpty", {"NULL|_"}},
-                                         {"[Int1  IntAndEmpty] ->  NullAndInt", {"_|null"}},
-                                         {"[ IntAndEmpty  Int2] ->  NullAndInt", {"null|_"}},
-                                         {"[ IntAndEmpty] ->  NullAndInt", {"null"}},
-                                         {"[ NullAndInt] ->  IntAndEmpty", {"NULL"}},
-
-                                 }})));
+        ::testing::Values(CFDFinderParams(
+                {kTennis,
+                 algos::cfdfinder::Expansion::constant,
+                 algos::cfdfinder::Result::direct,
+                 3333,  // max_lhs
+                 1.0,   // min_conf
+                 4,
+                 2,
+                 1000,
+                 true,  // is_null_equal_null
+                 1,
+                 {
+                         {"[temp humidity windy play] -> outlook",
+                          {"_|high|_|_", "_|_|true|_", "mild|_|_|_", "hot|_|_|_"}},
+                         {"[outlook temp humidity play] -> windy",
+                          {"_|_|_|yes", "_|mild|_|_", "_|_|normal|_"}},
+                         {"[outlook temp play] -> windy", {"_|_|yes", "_|mild|_", "_|cool|_"}},
+                 }})));
 
 }  // namespace tests

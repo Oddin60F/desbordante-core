@@ -46,12 +46,18 @@ private:
     double support_;
     size_t num_keepers_;
     unsigned long long number_;
+    size_t cached_hash_ = 0;
 
 public:
     explicit Pattern(Entries&& entries) : entries_(std::move(entries)) {
         if (PatternDebugController::IsDebugEnabled()) {
             number_ = PatternDebugController::Next();
         }
+        cached_hash_ = std::hash<Entries>{}(entries_);
+    }
+
+    size_t GetHash() const noexcept {
+        return cached_hash_;
     }
 
     Pattern(Pattern&& other) noexcept = default;
@@ -81,7 +87,7 @@ public:
         return !(*this < other);
     }
 
-    double UpdateCover(std::unordered_set<int> const& used_rows);
+    double UpdateCover(boost::dynamic_bitset<> const& used_rows);
     void UpdateKeepers(Row const& inverted_pli_rhs);
     size_t GetNumCover() const;
 
@@ -130,6 +136,6 @@ public:
 template <>
 struct std::hash<algos::cfdfinder::Pattern> {
     size_t operator()(algos::cfdfinder::Pattern const& p) const {
-        return std::hash<algos::cfdfinder::Entries>{}(p.GetEntries());
+        return p.GetHash();
     }
 };

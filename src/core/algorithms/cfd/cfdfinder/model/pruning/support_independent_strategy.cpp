@@ -53,11 +53,7 @@ bool SupportIndependentPruning::IsPatternWorthAdding(Pattern const& pattern) {
 }
 
 bool SupportIndependentPruning::ValidForProcessing(Entries const& entries) {
-    if (!visited_.contains(entries)) {
-        visited_.insert(entries);
-        return true;
-    }
-    return false;
+    return visited_.insert(entries).second;
 }
 
 bool SupportIndependentPruning::ContinueGeneration(PatternTableau const& current_tableau) {

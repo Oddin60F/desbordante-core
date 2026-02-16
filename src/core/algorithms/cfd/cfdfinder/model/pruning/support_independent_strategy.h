@@ -9,6 +9,8 @@
 #include <variant>
 #include <vector>
 
+#include <boost/unordered/unordered_flat_set.hpp>
+
 #include "core/algorithms/cfd/cfdfinder/model/pruning/pruning_strategy.h"
 #include "core/config/thread_number/type.h"
 
@@ -90,7 +92,7 @@ private:
     double max_level_support_drop_;
     bool insufficient_support_gain_;
     SupportMap support_map_;
-    std::unordered_set<Entries> visited_;
+    boost::unordered_flat_set<Entries, std::hash<Entries>> visited_;
 
 protected:
     Candidate current_candidate_;

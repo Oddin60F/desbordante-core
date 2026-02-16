@@ -128,7 +128,7 @@ TEST_P(CFDFinderAlgorithmTest, Test) {
 INSTANTIATE_TEST_SUITE_P(
         CFDFinderAdditionalTests, CFDFinderAlgorithmTest,
         ::testing::Values(CFDFinderParams(
-                {kTennis,
+                {kBreastCancer,
                  algos::cfdfinder::Expansion::constant,
                  algos::cfdfinder::Result::direct,
                  3333,  // max_lhs
@@ -137,7 +137,7 @@ INSTANTIATE_TEST_SUITE_P(
                  2,
                  1000,
                  true,  // is_null_equal_null
-                 1,
+                 5,
                  {
                          {"[temp humidity windy play] -> outlook",
                           {"_|high|_|_", "_|_|true|_", "mild|_|_|_", "hot|_|_|_"}},

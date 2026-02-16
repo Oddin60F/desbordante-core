@@ -37,47 +37,20 @@ bool LegacyPruning::IsPatternWorthAdding(Pattern const& pattern) {
 }
 
 bool LegacyPruning::ValidForProcessing(Entries const& entries) {
-    size_t count = 0;
-    bool yes = true;
+    auto buff_entries = entries;
+    std::shared_ptr<Entry> buff_entry = std::make_shared<VariableEntry>();
     for (size_t i = 0; i < entries.size(); ++i) {
         if (entries[i].entry->IsConstant()) {
-            ++count;
-            if (!yes) {
-                continue;
+            std::swap(buff_entries[i].entry, buff_entry);
+            if (!visited_.contains(buff_entries)) {
+                return false;
             }
-            auto new_entries = entries;
-            new_entries[i].entry = std::make_shared<VariableEntry>();
-            yes = visited_.contains(new_entries);
+            std::swap(buff_entries[i].entry, buff_entry);
         }
     }
-
-    PatternDebugController::Plus(count);
-    return yes;
+    return true;
 }
 
-// bool LegacyPruning::ValidForProcessing(Pattern const& child) {
-//     auto entries = child.GetEntries();
-//     std::shared_ptr<Entry> variable_entry = std::make_shared<VariableEntry>();
-//     std::shared_ptr<Entry> buff_entry;
-//     bool yes = true;
-//     size_t count = 0;
-//     for (size_t i = 0; i < entries.size(); ++i) {
-//         if (entries[i].entry->IsConstant()) {
-//             ++count;
-
-//             if (!yes) {
-//                 continue;
-//             }
-//             buff_entry = std::move(entries[i].entry);
-//             entries[i].entry = std::move(variable_entry);
-//             yes = visited_.contains(entries);
-//             variable_entry = std::move(entries[i].entry);
-//             entries[i].entry = std::move(buff_entry);
-//         }
-//     }
-//     PatternDebugController::Plus(count);
-//     return yes;
-// }
 bool LegacyPruning::ContinueGeneration(PatternTableau const& currentTableau) {
     return currentTableau.GetSupport() >= min_support_ &&
            currentTableau.GetConfidence() >= min_confidence_;

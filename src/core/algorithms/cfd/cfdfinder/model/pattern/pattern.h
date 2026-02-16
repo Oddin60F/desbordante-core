@@ -15,7 +15,6 @@ namespace algos::cfdfinder {
 class PatternDebugController {
 private:
     inline static bool debug_enabled_ = false;
-    inline static unsigned long long thread_local counter_ = 0;
 
 public:
     static bool IsDebugEnabled() noexcept {
@@ -25,18 +24,6 @@ public:
     static void SetDebugEnabled(bool enabled) {
         debug_enabled_ = enabled;
     }
-
-    static void ResetCounter() {
-        counter_ = 0;
-    }
-
-    static unsigned long long Next() {
-        return counter_++;
-    }
-
-    static void Plus(size_t count) {
-        counter_ += count;
-    }
 };
 
 class Pattern {
@@ -45,14 +32,10 @@ private:
     std::vector<Cluster> cover_;
     double support_;
     size_t num_keepers_;
-    unsigned long long number_;
     size_t cached_hash_ = 0;
 
 public:
     explicit Pattern(Entries&& entries) : entries_(std::move(entries)) {
-        if (PatternDebugController::IsDebugEnabled()) {
-            number_ = PatternDebugController::Next();
-        }
         cached_hash_ = std::hash<Entries>{}(entries_);
     }
 

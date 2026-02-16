@@ -17,7 +17,7 @@ public:
         : compressed_records_(std::move(compressed_records)) {}
 
     Pattern GenerateNullPattern(BitSet const& attributes) const override;
-    std::vector<Child> GetChildPatterns(Pattern const& current_pattern) const override;
+    std::vector<ReplacedItem> ExpandPatterns(Pattern const& current_pattern) const override;
 };
 
 }  // namespace algos::cfdfinder

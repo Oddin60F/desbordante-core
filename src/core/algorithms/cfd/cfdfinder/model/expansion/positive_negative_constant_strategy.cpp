@@ -7,9 +7,9 @@
 
 namespace algos::cfdfinder {
 
-std::vector<ExpansionStrategy::Child> PositiveNegativeConstantExpansion::GetChildPatterns(
+std::vector<ExpansionStrategy::ReplacedItem> PositiveNegativeConstantExpansion::ExpandPatterns(
         Pattern const& current_pattern) const {
-    std::vector<Child> result;
+    std::vector<ReplacedItem> result;
     auto const& entries = current_pattern.GetEntries();
 
     for (auto const& cluster : current_pattern.GetCover()) {

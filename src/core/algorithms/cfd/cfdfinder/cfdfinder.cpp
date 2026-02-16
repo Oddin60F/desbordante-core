@@ -162,7 +162,6 @@ void CFDFinder::TraverseLatticePar(RowsPtr compressed_records_shared,
     size_t num_results = 0;
     int height = levels.size();
     --height;
-    bool cont = true;
     while (height >= 0) {
         auto start_level_time = std::chrono::system_clock::now();
         auto& current_level = levels[height];
@@ -343,7 +342,6 @@ std::vector<Cluster> CFDFinder::EnrichPLI(model::PLI const* pli, int num_tuples)
             enriched_clusters.emplace_back(1, i);
         }
     }
-
     return enriched_clusters;
 }
 
@@ -475,9 +473,6 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
                                           std::shared_ptr<ExpansionStrategy> expansion_strategy,
                                           std::shared_ptr<PruningStrategy> pruning_strategy,
                                           RowsPtr records) {
-    if (PatternDebugController::IsDebugEnabled()) {
-        PatternDebugController::ResetCounter();
-    }
     auto null_pattern = expansion_strategy->GenerateNullPattern(lhs_attributes);
 
     auto null_cover = EnrichPLI(lhs_pli, relation_->GetNumRows());
@@ -497,7 +492,6 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
             pruning_strategy->AddPattern(current_pattern);
 
             Frontier new_frontier;
-
             boost::dynamic_bitset<> used_rows(relation_->GetNumRows());
 
             for (auto const& pcluster : current_pattern.GetCover()) {
@@ -566,7 +560,6 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
 
                     child.SetCover(std::move(child_cover));
                     child.UpdateKeepers(inverted_pli_rhs);
-
                     frontier.Emplace(std::move(child));
                     std::swap(parent_entries[replaced_pos].entry, buff_entry);
                 };
@@ -582,17 +575,6 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
 
     return PatternTableau(std::move(tableau), relation_->GetNumRows());
 }
-
-// std::vector<Cluster> CFDFinder::DetermineCover(Pattern const& child_pattern,
-//                                                Pattern const& current_pattern,
-//                                                ColumnMajorRecords const& records,
-//                                                size_t replaced_pos) const {
-//     auto const& parent_cover = current_pattern.GetCover();
-//     auto const& [id, entry] = child_pattern.GetEntries()[replaced_pos];
-//     algos::cfdfinder::Row const& column = records.get_column(id);
-
-//     return entry->GetCoverMask(parent_cover, column);
-// }
 
 std::shared_ptr<ExpansionStrategy> CFDFinder::InitExpansionStrategy(
         RowsPtr pli_records, InvertedClusterMaps const& inverted_cluster_maps) {

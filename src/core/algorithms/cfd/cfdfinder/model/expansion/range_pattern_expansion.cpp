@@ -45,9 +45,9 @@ Pattern RangePatternExpansion::GenerateNullPattern(BitSet const& attributes) con
     return Pattern(std::move(entries));
 }
 
-std::vector<ExpansionStrategy::Child> RangePatternExpansion::GetChildPatterns(
+std::vector<ExpansionStrategy::ReplacedItem> RangePatternExpansion::ExpandPatterns(
         Pattern const& current_pattern) const {
-    std::vector<Child> result;
+    std::vector<ReplacedItem> result;
     auto const& entries = current_pattern.GetEntries();
 
     for (size_t i = 0; i < entries.size(); ++i) {

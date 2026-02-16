@@ -37,11 +37,6 @@ size_t Pattern::GetNumCover() const {
 }
 
 bool Pattern::operator<(Pattern const& other) const noexcept {
-    if (PatternDebugController::IsDebugEnabled()) {
-        return std::tie(support_, num_keepers_, number_) <
-               std::tie(other.support_, other.num_keepers_, other.number_);
-    } else {
-        return std::tie(support_, num_keepers_) < std::tie(other.support_, other.num_keepers_);
-    }
+    return std::tie(support_, num_keepers_) < std::tie(other.support_, other.num_keepers_);
 }
 }  // namespace algos::cfdfinder

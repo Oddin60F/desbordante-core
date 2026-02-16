@@ -11,7 +11,7 @@ public:
     explicit PositiveNegativeConstantExpansion(RowsPtr&& compressed_records)
         : ConstantExpansion(std::move(compressed_records)) {}
 
-    std::vector<Child> GetChildPatterns(Pattern const& current_pattern) const override;
+    std::vector<ReplacedItem> ExpandPatterns(Pattern const& current_pattern) const override;
 };
 
 }  // namespace algos::cfdfinder

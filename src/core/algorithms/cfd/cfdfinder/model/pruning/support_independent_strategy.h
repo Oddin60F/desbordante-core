@@ -103,13 +103,9 @@ public:
                               config::ThreadNumType thread_num = 1);
 
     void StartNewTableau(Candidate const& candidate) override;
-    void AddPattern([[maybe_unused]] Pattern const& pattern) override;
-
-    void ExpandPattern([[maybe_unused]] Pattern const& pattern) {};
-
     bool HasEnoughPatterns(std::vector<Pattern> const& tableau) override;
     bool IsPatternWorthConsidering(double new_support) override;
-    bool IsPatternWorthAdding(Pattern const& pattern) override;
+    bool TryAdding(Pattern const& pattern) override;
     bool ValidForProcessing(Entries const& entries) override;
     bool ContinueGeneration(PatternTableau const& current_tableau) override;
 

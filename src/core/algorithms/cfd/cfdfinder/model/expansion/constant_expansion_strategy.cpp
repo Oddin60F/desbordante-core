@@ -1,6 +1,7 @@
 #include "core/algorithms/cfd/cfdfinder/model/expansion/constant_expansion_strategy.h"
 
 #include <cstddef>
+#include <memory>
 
 #include "core/algorithms/cfd/cfdfinder/model/pattern/constant_entry.h"
 #include "core/algorithms/cfd/cfdfinder/model/pattern/variable_entry.h"

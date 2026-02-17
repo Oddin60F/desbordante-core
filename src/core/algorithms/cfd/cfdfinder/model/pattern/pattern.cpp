@@ -9,7 +9,7 @@
 
 namespace algos::cfdfinder {
 
-double Pattern::UpdateCover(boost::dynamic_bitset<> const& used_rows) {
+void Pattern::UpdateCover(boost::dynamic_bitset<> const& used_rows) {
     for (auto& cluster : cover_) {
         std::erase_if(cluster, [&used_rows](int element) { return used_rows.test(element); });
 
@@ -24,7 +24,6 @@ double Pattern::UpdateCover(boost::dynamic_bitset<> const& used_rows) {
     }
 
     support_ = static_cast<double>(GetNumCover());
-    return support_;
 }
 
 void Pattern::UpdateKeepers(Row const& inverted_pli_rhs) {

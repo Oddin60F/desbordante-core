@@ -416,9 +416,9 @@ CFDFinder::Lattice CFDFinder::GetLattice(PLIsPtr plis, RowsPtr compressed_record
     auto const positive_cover_tree =
             std::make_shared<hyfd::fd_tree::FDTree>(relation_->GetNumColumns());
 
-    Sampler sampler(plis, compressed_records, threads_num_);
+    Sampler sampler(plis, compressed_records);
     Inductor inductor(positive_cover_tree);
-    Validator validator(positive_cover_tree, plis, compressed_records, threads_num_);
+    Validator validator(positive_cover_tree, plis, compressed_records);
 
     hy::IdPairs comparison_suggestions;
 
@@ -474,7 +474,6 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
                                           std::shared_ptr<PruningStrategy> pruning_strategy,
                                           RowsPtr records) {
     auto null_pattern = expansion_strategy->GenerateNullPattern(lhs_attributes);
-
     auto null_cover = EnrichPLI(lhs_pli, relation_->GetNumRows());
 
     null_pattern.SetCover(std::move(null_cover));
@@ -488,23 +487,19 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
     while (!frontier.Empty() && !pruning_strategy->HasEnoughPatterns(tableau)) {
         auto current_pattern = frontier.Poll();
 
-        if (pruning_strategy->IsPatternWorthAdding(current_pattern)) {
-            pruning_strategy->AddPattern(current_pattern);
-
+        if (pruning_strategy->TryAdding(current_pattern)) {
             Frontier new_frontier;
-            boost::dynamic_bitset<> used_rows(relation_->GetNumRows());
 
-            for (auto const& pcluster : current_pattern.GetCover()) {
-                for (auto tuple : pcluster) {
-                    used_rows.set(tuple);
-                }
+            boost::dynamic_bitset<> used_rows(relation_->GetNumRows());
+            for (auto row_id : current_pattern.GetCover() | std::views::join) {
+                used_rows.set(row_id);
             }
 
             while (!frontier.Empty()) {
                 auto pattern = frontier.Poll();
 
-                double new_support = pattern.UpdateCover(used_rows);
-                if (pruning_strategy->IsPatternWorthConsidering(new_support)) {
+                pattern.UpdateCover(used_rows);
+                if (pruning_strategy->IsPatternWorthConsidering(pattern.GetSupport())) {
                     pattern.UpdateKeepers(inverted_pli_rhs);
                     new_frontier.Emplace(std::move(pattern));
                 }
@@ -514,8 +509,6 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
             frontier.Swap(new_frontier);
 
         } else {
-            pruning_strategy->ExpandPattern(current_pattern);
-
             auto parent_entries = current_pattern.GetEntries();
             auto const& parent_cover = current_pattern.GetCover();
 
@@ -525,11 +518,7 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
                     continue;
                 }
                 auto const& column = compressed_records_shared.get_column(parent_entries[i].id);
-                std::vector<size_t> column_values;
-                column_values.reserve(parent_cover.size());
-                for (auto const& cluster : parent_cover) {
-                    column_values.push_back(column[cluster[0]]);
-                }
+
                 auto process_child = [&](size_t replaced_pos,
                                          std::shared_ptr<Entry> replaced_entry) {
                     std::shared_ptr<Entry> buff_entry = replaced_entry;
@@ -541,8 +530,8 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
                         return;
                     }
 
-                    auto&& [child_cover_mask, child_support] =
-                            replaced_entry->GetCoverMask(current_pattern.GetCover(), column_values);
+                    auto&& [cover_mask, child_support] =
+                            replaced_entry->GetCoverMask(parent_cover, column);
 
                     if (!pruning_strategy->IsPatternWorthConsidering(child_support)) {
                         std::swap(parent_entries[replaced_pos].entry, buff_entry);
@@ -551,11 +540,10 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
 
                     auto new_entries = parent_entries;
                     Pattern child(std::move(new_entries));
-
                     std::vector<Cluster> child_cover;
-                    child_cover.reserve(child_cover_mask.count());
-                    util::ForEachIndex(child_cover_mask, [&](size_t cluster_id) {
-                        child_cover.push_back(current_pattern.GetCover()[cluster_id]);
+                    child_cover.reserve(cover_mask.count());
+                    util::ForEachIndex(cover_mask, [&](size_t cluster_id) {
+                        child_cover.push_back(parent_cover[cluster_id]);
                     });
 
                     child.SetCover(std::move(child_cover));

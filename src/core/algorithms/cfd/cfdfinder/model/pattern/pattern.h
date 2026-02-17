@@ -70,7 +70,7 @@ public:
         return !(*this < other);
     }
 
-    double UpdateCover(boost::dynamic_bitset<> const& used_rows);
+    void UpdateCover(boost::dynamic_bitset<> const& used_rows);
     void UpdateKeepers(Row const& inverted_pli_rhs);
     size_t GetNumCover() const;
 

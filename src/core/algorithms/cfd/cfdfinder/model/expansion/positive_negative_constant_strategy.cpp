@@ -12,12 +12,13 @@ std::vector<ExpansionStrategy::ReplacedItem> PositiveNegativeConstantExpansion::
     std::vector<ReplacedItem> result;
     auto const& entries = current_pattern.GetEntries();
 
-    for (auto const& cluster : current_pattern.GetCover()) {
-        for (size_t i = 0; i < entries.size(); ++i) {
-            if (entries[i].entry->IsConstant()) {
-                continue;
-            }
-            int value = (*compressed_records_)[cluster[0]][entries[i].id];
+    for (size_t i = 0; i < entries.size(); ++i) {
+        auto const& item = entries[i];
+        if (item.entry->IsConstant()) {
+            continue;
+        }
+        for (auto const& cluster : current_pattern.GetCover()) {
+            int value = (*compressed_records_)[cluster[0]][item.id];
 
             result.emplace_back(i, std::make_shared<ConstantEntry>(value));
             result.emplace_back(i, std::make_shared<NegativeConstantEntry>(value));

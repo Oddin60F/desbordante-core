@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <unordered_set>
 
+#include <boost/unordered/unordered_flat_set.hpp>
+
 #include "core/algorithms/cfd/cfdfinder/model/pruning/pruning_strategy.h"
 
 namespace algos::cfdfinder {
@@ -13,7 +15,7 @@ private:
     double min_confidence_;
     double cumulative_support_;
     size_t num_tuples_;
-    std::unordered_set<Entries> visited_;
+    boost::unordered_flat_set<Entries, std::hash<Entries>> visited_;
 
 public:
     LegacyPruning(double min_support, double min_confidence, size_t num_tuples)
@@ -24,15 +26,11 @@ public:
 
     void StartNewTableau([[maybe_unused]] Candidate const& candidate) override;
 
-    void AddPattern(Pattern const& pattern) override;
-
-    void ExpandPattern(Pattern const& pattern) override;
-
     bool HasEnoughPatterns([[maybe_unused]] std::vector<Pattern> const& tableau) override;
 
     bool IsPatternWorthConsidering(double new_support) override;
 
-    bool IsPatternWorthAdding(Pattern const& pattern) override;
+    bool TryAdding(Pattern const& pattern) override;
 
     bool ValidForProcessing(Entries const& entries) override;
 

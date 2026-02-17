@@ -56,9 +56,9 @@ class Frontier {
     };
 
     using HashedIndex =
-            bmi::hashed_unique<bmi::tag<ByEntries>,
-                               bmi::member<FrontierItem, Pattern, &FrontierItem::pattern>,
-                               PatternHash, PatternEqual>;
+            bmi::hashed_non_unique<bmi::tag<ByEntries>,
+                                   bmi::member<FrontierItem, Pattern, &FrontierItem::pattern>,
+                                   PatternHash, PatternEqual>;
     using PriorityIndex = bmi::ordered_non_unique<
             bmi::tag<ByPriority>,
             bmi::composite_key<FrontierItem,
@@ -85,7 +85,7 @@ public:
     }
 
     bool Contains(Entries const& entries) const {
-        auto& idx = container_.get<ByEntries>();
+        auto const& idx = container_.get<ByEntries>();
         return idx.contains(entries);
     }
 

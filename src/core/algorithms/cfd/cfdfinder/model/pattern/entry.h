@@ -23,9 +23,21 @@ public:
     virtual size_t Hash() const = 0;
     virtual bool operator==(Entry const& other) const = 0;
     virtual bool IsConstant() const = 0;
-    virtual std::pair<boost::dynamic_bitset<>, size_t> GetCoverMask(
-            std::vector<Cluster> const& parent_cover, std::vector<size_t> const& column) const = 0;
     virtual std::string ToString(InvertedClusterMap const& cluster_map) const = 0;
+
+    virtual std::pair<boost::dynamic_bitset<>, size_t> GetCoverMask(
+            std::vector<Cluster> const& parent_cover, Row const& column) const {
+        boost::dynamic_bitset<> cover_mask(parent_cover.size());
+        size_t new_support = 0;
+        for (size_t cluster_id = 0; cluster_id < parent_cover.size(); ++cluster_id) {
+            auto const& cluster = parent_cover[cluster_id];
+            if (Matches(column[cluster[0]])) {
+                cover_mask.set(cluster_id);
+                new_support += parent_cover[cluster_id].size();
+            }
+        }
+        return {std::move(cover_mask), new_support};
+    }
 };
 
 }  // namespace algos::cfdfinder

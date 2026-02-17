@@ -27,10 +27,6 @@ public:
         inverted_pli_rhs_ = inverted_plis_->at(candidate.rhs_);
     }
 
-    void AddPattern([[maybe_unused]] Pattern const& pattern) override {}
-
-    void ExpandPattern([[maybe_unused]] Pattern const& pattern) override {}
-
     bool HasEnoughPatterns(std::vector<Pattern> const& tableau) override {
         return !tableau.empty();
     }
@@ -39,7 +35,7 @@ public:
         return false;
     }
 
-    bool IsPatternWorthAdding(Pattern const& pattern) override {
+    bool TryAdding(Pattern const& pattern) override {
         return CalculateG1(pattern) <= max_g1_;
     }
 

@@ -32,10 +32,6 @@ void SupportIndependentPruning::StartNewTableau(Candidate const& candidate) {
     visited_.clear();
 }
 
-void SupportIndependentPruning::AddPattern([[maybe_unused]] Pattern const& pattern) {
-    visited_.clear();
-}
-
 bool SupportIndependentPruning::HasEnoughPatterns(std::vector<Pattern> const& tableau) {
     return insufficient_support_gain_ || (tableau.size() >= max_patterns_);
 }
@@ -44,12 +40,17 @@ bool SupportIndependentPruning::IsPatternWorthConsidering(double new_support) {
     return new_support >= min_support_gain_;
 }
 
-bool SupportIndependentPruning::IsPatternWorthAdding(Pattern const& pattern) {
+bool SupportIndependentPruning::TryAdding(Pattern const& pattern) {
     if (pattern.GetSupport() < min_support_gain_) {
         insufficient_support_gain_ = true;
         return false;
     }
-    return pattern.GetConfidence() >= min_confidence_;
+    if (pattern.GetConfidence() < min_confidence_) {
+        return false;
+    }
+
+    visited_.clear();
+    return true;
 }
 
 bool SupportIndependentPruning::ValidForProcessing(Entries const& entries) {

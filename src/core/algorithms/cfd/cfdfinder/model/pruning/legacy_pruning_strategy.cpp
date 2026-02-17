@@ -16,14 +16,6 @@ void LegacyPruning::StartNewTableau([[maybe_unused]] Candidate const& candidate)
     visited_.clear();
 }
 
-void LegacyPruning::AddPattern(Pattern const& pattern) {
-    cumulative_support_ += pattern.GetSupport();
-}
-
-void LegacyPruning::ExpandPattern(Pattern const& pattern) {
-    visited_.insert(pattern.GetEntries());
-}
-
 bool LegacyPruning::HasEnoughPatterns([[maybe_unused]] std::vector<Pattern> const& tableau) {
     return cumulative_support_ >= min_support_ * num_tuples_;
 }
@@ -32,8 +24,14 @@ bool LegacyPruning::IsPatternWorthConsidering(double new_support) {
     return new_support > 0;
 }
 
-bool LegacyPruning::IsPatternWorthAdding(Pattern const& pattern) {
-    return pattern.GetConfidence() >= min_confidence_;
+bool LegacyPruning::TryAdding(Pattern const& pattern) {
+    if (pattern.GetConfidence() >= min_confidence_) {
+        cumulative_support_ += pattern.GetSupport();
+        return true;
+    }
+
+    visited_.insert(pattern.GetEntries());
+    return false;
 }
 
 bool LegacyPruning::ValidForProcessing(Entries const& entries) {

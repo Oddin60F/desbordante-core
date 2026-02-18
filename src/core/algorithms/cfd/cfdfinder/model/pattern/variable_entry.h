@@ -32,5 +32,17 @@ public:
     std::string ToString([[maybe_unused]] InvertedClusterMap const& cluster_map) const override {
         return std::string(kWildCard);
     }
+
+    std::pair<boost::dynamic_bitset<>, size_t> GetCoverMask(
+            std::vector<Cluster> const& parent_cover,
+            std::vector<size_t> const& column) const override {
+        boost::dynamic_bitset<> cover_mask(parent_cover.size());
+        size_t new_support = 0;
+        for (size_t cluster_id = 0; cluster_id < parent_cover.size(); ++cluster_id) {
+            cover_mask.set(cluster_id);
+            new_support += parent_cover[cluster_id].size();
+        }
+        return {std::move(cover_mask), new_support};
+    }
 };
 }  // namespace algos::cfdfinder

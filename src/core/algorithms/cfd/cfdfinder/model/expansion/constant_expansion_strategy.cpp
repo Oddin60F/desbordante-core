@@ -18,7 +18,7 @@ Pattern ConstantExpansion::GenerateNullPattern(BitSet const& attributes) const {
     return Pattern(std::move(entries));
 }
 
-std::vector<ExpansionStrategy::ReplacedItem> ConstantExpansion::ExpandPatterns(
+std::vector<ExpansionStrategy::ReplacedItem> ConstantExpansion::ExpandPattern(
         Pattern const& current_pattern) const {
     std::vector<ReplacedItem> result;
     auto const& entries = current_pattern.GetEntries();

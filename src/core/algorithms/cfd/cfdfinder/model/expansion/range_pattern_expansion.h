@@ -18,7 +18,7 @@ private:
 public:
     explicit RangePatternExpansion(InvertedClusterMaps const& inverted_cluster_maps);
     Pattern GenerateNullPattern(BitSet const& attributes) const override;
-    std::vector<ReplacedItem> ExpandPatterns(Pattern const& current_pattern) const override;
+    std::vector<ReplacedItem> ExpandPattern(Pattern const& current_pattern) const override;
 };
 
 }  // namespace algos::cfdfinder

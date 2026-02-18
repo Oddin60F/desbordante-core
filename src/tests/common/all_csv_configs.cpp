@@ -16,14 +16,14 @@ CSVConfig CreateCsvConfig(std::string_view filename, char separator, bool has_he
 CSVConfig const kWine = CreateCsvConfig("wine.csv", ',', true);
 CSVConfig const kNCVOTER = CreateCsvConfig("ncvoter.csv", ',', true);
 
-CSVConfig const kAbalone = CreateCsvConfig("abalone.csv", ',', false);
+CSVConfig const kAbalone = CreateCsvConfig("abalone.csv", ',', true);
 CSVConfig const kACShippingDates = CreateCsvConfig("ACShippingDates.csv", ',', true);
-CSVConfig const kAdult = CreateCsvConfig("adult.csv", ';', false);
-CSVConfig const kAdult9attr = CreateCsvConfig("adult9attr.csv", ';', false);
+CSVConfig const kAdult = CreateCsvConfig("adult1.csv", ';', true);
+CSVConfig const kAdult9attr = CreateCsvConfig("adult9attr.csv", ';', true);
 CSVConfig const kAnimalsBeverages = CreateCsvConfig("animals_beverages.csv", ',', true);
 CSVConfig const kBernoulliRelation = CreateCsvConfig("BernoulliRelation.csv", ',', true);
 CSVConfig const kBreastCancer = CreateCsvConfig("breast-cancer-wisconsin.csv", ',', true);
-CSVConfig const kBridges = CreateCsvConfig("bridges.csv", ',', false);
+CSVConfig const kBridges = CreateCsvConfig("bridges.csv", ',', true);
 CSVConfig const kCIPublicHighway = CreateCsvConfig("CIPublicHighway.csv", ',', true);
 CSVConfig const kCIPublicHighway10k = CreateCsvConfig("CIPublicHighway10k.csv", ',', true);
 CSVConfig const kCIPublicHighway20attr55k =

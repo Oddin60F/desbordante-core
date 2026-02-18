@@ -17,6 +17,7 @@
 #include "core/algorithms/cfd/cfdfinder/model/hyfd/sampler.h"
 #include "core/algorithms/cfd/cfdfinder/model/hyfd/validator.h"
 #include "core/algorithms/cfd/cfdfinder/model/pattern/constant_entry.h"
+#include "core/algorithms/cfd/cfdfinder/model/pattern/negative_constant_entry.h"
 #include "core/algorithms/cfd/cfdfinder/model/pruning_strategies.h"
 #include "core/algorithms/cfd/cfdfinder/model/result_strategies.h"
 #include "core/algorithms/cfd/cfdfinder/types/frontier.h"
@@ -507,8 +508,9 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
 
             tableau.push_back(std::move(current_pattern));
             frontier.Swap(new_frontier);
-
-        } else {
+            continue;
+        }
+        {
             auto parent_entries = current_pattern.GetEntries();
             auto const& parent_cover = current_pattern.GetCover();
 
@@ -518,24 +520,96 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
                     continue;
                 }
                 auto const& column = compressed_records_shared.get_column(parent_entries[i].id);
+                std::vector<size_t> cluster_first;
+                cluster_first.reserve(parent_cover.size());
+                for (auto const& cluster : parent_cover) {
+                    cluster_first.push_back(column[cluster[0]]);
+                }
 
-                auto process_child = [&](size_t replaced_pos,
-                                         std::shared_ptr<Entry> replaced_entry) {
-                    std::shared_ptr<Entry> buff_entry = replaced_entry;
-                    std::swap(parent_entries[replaced_pos].entry, buff_entry);
+                // auto process_child = [&](size_t replaced_pos,
+                //                          std::shared_ptr<Entry> replaced_entry) {
+                //     std::shared_ptr<Entry> buff_entry = replaced_entry;
+                //     std::swap(parent_entries[replaced_pos].entry, buff_entry);
+
+                //     if (!pruning_strategy->ValidForProcessing(parent_entries) ||
+                //         frontier.Contains(parent_entries)) {
+                //         std::swap(parent_entries[replaced_pos].entry, buff_entry);
+                //         return;
+                //     }
+
+                //     auto&& [cover_mask, child_support] =
+                //             replaced_entry->GetCoverMask(parent_cover, cluster_first);
+
+                //     if (!pruning_strategy->IsPatternWorthConsidering(child_support)) {
+                //         std::swap(parent_entries[replaced_pos].entry, buff_entry);
+                //         return;
+                //     }
+
+                //     auto new_entries = parent_entries;
+                //     Pattern child(std::move(new_entries));
+                //     std::vector<Cluster> child_cover;
+                //     child_cover.reserve(cover_mask.count());
+                //     util::ForEachIndex(cover_mask, [&](size_t cluster_id) {
+                //         child_cover.push_back(parent_cover[cluster_id]);
+                //     });
+
+                //     child.SetCover(std::move(child_cover));
+                //     child.UpdateKeepers(inverted_pli_rhs);
+                //     frontier.Emplace(std::move(child));
+                //     std::swap(parent_entries[replaced_pos].entry, buff_entry);
+                // };
+                std::vector<int> unique_values;
+                std::unordered_set<int> seen;
+
+                unique_values.reserve(parent_cover.size());
+                for (auto const& cluster : parent_cover) {
+                    int value = (*records)[cluster[0]][item.id];
+                    if (seen.insert(value).second) {
+                        unique_values.push_back(value);
+                    }
+                }
+                // Строим отображение: значение -> индекс в results
+                std::unordered_map<int, size_t> value_to_index;
+                value_to_index.reserve(unique_values.size());
+                for (size_t i = 0; i < unique_values.size(); ++i) {
+                    value_to_index[unique_values[i]] = i;
+                }
+
+                // Сразу создаем results с нужным размером
+                std::vector<std::tuple<int, boost::dynamic_bitset<>, size_t>> results;
+                results.reserve(unique_values.size());
+                for (int constant : unique_values) {
+                    results.emplace_back(constant, boost::dynamic_bitset<>(parent_cover.size()), 0);
+                }
+
+                // Один проход по кластерам
+                for (size_t cluster_id = 0; cluster_id < parent_cover.size(); ++cluster_id) {
+                    int val = cluster_first[cluster_id];
+                    auto it = value_to_index.find(val);
+                    if (it != value_to_index.end()) {
+                        size_t idx = it->second;
+                        auto& [constant, mask, support] = results[idx];
+                        mask.set(cluster_id);
+                        support += parent_cover[cluster_id].size();
+                    }
+                }
+
+                for (auto [constant, cover_mask, child_support] : results) {
+                    std::shared_ptr<Entry> buff_entry = std::make_shared<ConstantEntry>(constant);
+                    std::swap(parent_entries[i].entry, buff_entry);
 
                     if (!pruning_strategy->ValidForProcessing(parent_entries) ||
                         frontier.Contains(parent_entries)) {
-                        std::swap(parent_entries[replaced_pos].entry, buff_entry);
-                        return;
+                        std::swap(parent_entries[i].entry, buff_entry);
+                        continue;
                     }
 
-                    auto&& [cover_mask, child_support] =
-                            replaced_entry->GetCoverMask(parent_cover, column);
+                    // auto&& [cover_mask, child_support] =
+                    //         replaced_entry->GetCoverMask(parent_cover, cluster_first);
 
                     if (!pruning_strategy->IsPatternWorthConsidering(child_support)) {
-                        std::swap(parent_entries[replaced_pos].entry, buff_entry);
-                        return;
+                        std::swap(parent_entries[i].entry, buff_entry);
+                        continue;
                     }
 
                     auto new_entries = parent_entries;
@@ -549,13 +623,9 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
                     child.SetCover(std::move(child_cover));
                     child.UpdateKeepers(inverted_pli_rhs);
                     frontier.Emplace(std::move(child));
-                    std::swap(parent_entries[replaced_pos].entry, buff_entry);
-                };
+                    std::swap(parent_entries[i].entry, buff_entry);
 
-                for (auto const& cluster : current_pattern.GetCover()) {
-                    int value = (*records)[cluster[0]][item.id];
-
-                    process_child(i, std::make_shared<ConstantEntry>(value));
+                    // process_child(i, std::make_shared<ConstantEntry>(value));
                 }
             }
         }

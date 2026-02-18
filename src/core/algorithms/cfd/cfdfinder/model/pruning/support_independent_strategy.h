@@ -92,7 +92,7 @@ private:
     double max_level_support_drop_;
     bool insufficient_support_gain_;
     SupportMap support_map_;
-    boost::unordered_flat_set<Entries, std::hash<Entries>> visited_;
+    std::unordered_set<Entries> visited_;
 
 protected:
     Candidate current_candidate_;

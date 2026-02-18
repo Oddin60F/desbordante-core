@@ -17,7 +17,7 @@ public:
     using ReplacedItem = std::pair<size_t, std::shared_ptr<Entry>>;
     virtual ~ExpansionStrategy() = default;
     virtual Pattern GenerateNullPattern(BitSet const& attributes) const = 0;
-    virtual std::vector<ReplacedItem> ExpandPatterns(Pattern const& pattern) const = 0;
+    virtual std::vector<ReplacedItem> ExpandPattern(Pattern const& pattern) const = 0;
 };
 
 }  // namespace algos::cfdfinder

@@ -12,20 +12,6 @@
 
 namespace algos::cfdfinder {
 
-class PatternDebugController {
-private:
-    inline static bool debug_enabled_ = false;
-
-public:
-    static bool IsDebugEnabled() noexcept {
-        return debug_enabled_;
-    }
-
-    static void SetDebugEnabled(bool enabled) {
-        debug_enabled_ = enabled;
-    }
-};
-
 class Pattern {
 private:
     Entries entries_;
@@ -54,20 +40,8 @@ public:
         return entries_ == other.entries_;
     };
 
-    bool operator!=(Pattern const& other) const {
-        return !(*this == other);
-    }
-
     bool operator>(Pattern const& other) const noexcept {
         return other < *this;
-    }
-
-    bool operator<=(Pattern const& other) const noexcept {
-        return !(other < *this);
-    }
-
-    bool operator>=(Pattern const& other) const noexcept {
-        return !(*this < other);
     }
 
     void UpdateCover(boost::dynamic_bitset<> const& used_rows);
@@ -98,10 +72,6 @@ public:
     void SetCover(std::vector<Cluster>&& new_cover) {
         cover_ = std::move(new_cover);
 
-        if (PatternDebugController::IsDebugEnabled()) {
-            std::ranges::for_each(cover_, [](auto& cluster) { std::ranges::sort(cluster); });
-            std::ranges::sort(cover_);
-        }
         support_ = GetNumCover();
     }
 

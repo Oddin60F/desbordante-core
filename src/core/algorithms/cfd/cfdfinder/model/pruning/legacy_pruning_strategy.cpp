@@ -24,7 +24,7 @@ bool LegacyPruning::IsPatternWorthConsidering(double new_support) {
     return new_support > 0;
 }
 
-bool LegacyPruning::TryAdding(Pattern const& pattern) {
+bool LegacyPruning::TryAdding(Pattern& pattern) {
     if (pattern.GetConfidence() >= min_confidence_) {
         cumulative_support_ += pattern.GetSupport();
         return true;

@@ -114,7 +114,6 @@ struct CFDFinderParams {
 class CFDFinderAlgorithmTest : public ::testing::TestWithParam<CFDFinderParams> {};
 
 TEST_P(CFDFinderAlgorithmTest, Test) {
-    algos::cfdfinder::PatternDebugController::SetDebugEnabled(true);
     std::ofstream file("/home/oddin60/Work/metanome_old/test_c++.txt", std::ios::trunc);
     auto const& p = GetParam();
     auto mp = algos::StdParamsMap(p.params);

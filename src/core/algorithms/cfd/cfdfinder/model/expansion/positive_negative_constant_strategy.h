@@ -6,12 +6,12 @@
 
 namespace algos::cfdfinder {
 class PositiveNegativeConstantExpansion : public ConstantExpansion {
-private:
 public:
     explicit PositiveNegativeConstantExpansion(RowsPtr&& compressed_records)
         : ConstantExpansion(std::move(compressed_records)) {}
 
-    std::vector<ReplacedItem> ExpandPattern(Pattern const& current_pattern) const override;
+    void ExpandAndProcess(Pattern parent_pattern, Frontier& frontier, Row const& inverted_pli_rhs,
+                          PruningStrategy& pruning_strategy) const override;
 };
 
 }  // namespace algos::cfdfinder

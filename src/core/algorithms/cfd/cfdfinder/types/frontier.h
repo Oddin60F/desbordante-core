@@ -18,6 +18,7 @@ namespace algos::cfdfinder {
 namespace bmi = boost::multi_index;
 
 class Frontier {
+private:
     struct ByEntries {};
 
     struct ByPriority {};
@@ -50,38 +51,25 @@ class Frontier {
         }
     };
 
-    struct FrontierItem {
-        Pattern pattern;
-        size_t insert_num;
-    };
-
-    using HashedIndex =
-            bmi::hashed_non_unique<bmi::tag<ByEntries>,
-                                   bmi::member<FrontierItem, Pattern, &FrontierItem::pattern>,
-                                   PatternHash, PatternEqual>;
-    using PriorityIndex = bmi::ordered_non_unique<
-            bmi::tag<ByPriority>,
-            bmi::composite_key<FrontierItem,
-                               bmi::member<FrontierItem, Pattern, &FrontierItem::pattern>,
-                               bmi::member<FrontierItem, size_t, &FrontierItem::insert_num>>,
-            bmi::composite_key_compare<std::greater<Pattern>, std::greater<size_t>>>;
+    using HashedIndex = bmi::hashed_non_unique<bmi::tag<ByEntries>, bmi::identity<Pattern>,
+                                               PatternHash, PatternEqual>;
+    using PriorityIndex = bmi::ordered_non_unique<bmi::tag<ByPriority>, bmi::identity<Pattern>,
+                                                  std::greater<Pattern>>;
 
     using FrontierContainer =
-            bmi::multi_index_container<FrontierItem, bmi::indexed_by<HashedIndex, PriorityIndex>>;
+            bmi::multi_index_container<Pattern, bmi::indexed_by<HashedIndex, PriorityIndex>>;
 
     FrontierContainer container_;
-    size_t next_seq_ = 0;
 
 public:
     void Emplace(Pattern&& pattern) {
-        container_.insert(FrontierItem{std::move(pattern), next_seq_++});
+        container_.insert(std::move(pattern));
     }
 
     Pattern Poll() {
         auto& idx = container_.get<ByPriority>();
         auto it = idx.begin();
-        FrontierItem item = std::move(idx.extract(it).value());
-        return std::move(item.pattern);
+        return std::move(idx.extract(it).value());
     }
 
     bool Contains(Entries const& entries) const {
@@ -95,7 +83,6 @@ public:
 
     void Swap(Frontier& other) {
         container_.swap(other.container_);
-        std::swap(next_seq_, other.next_seq_);
     }
 };
 

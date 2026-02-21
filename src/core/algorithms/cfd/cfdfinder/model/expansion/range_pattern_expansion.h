@@ -16,9 +16,11 @@ private:
     std::vector<SortedClustersIdPtr> sorted_clusters_ids_;
 
 public:
-    explicit RangePatternExpansion(InvertedClusterMaps const& inverted_cluster_maps);
+    explicit RangePatternExpansion(InvertedClusterMaps const& inverted_cluster_maps,
+                                   RowsPtr&& compressed_records);
     Pattern GenerateNullPattern(BitSet const& attributes) const override;
-    std::vector<ReplacedItem> ExpandPattern(Pattern const& current_pattern) const override;
+    void ExpandAndProcess(Pattern parent_pattern, Frontier& frontier, Row const& inverted_pli_rhs,
+                          PruningStrategy& pruning_strategy) const override;
 };
 
 }  // namespace algos::cfdfinder

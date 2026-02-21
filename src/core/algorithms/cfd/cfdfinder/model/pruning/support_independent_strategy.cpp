@@ -40,7 +40,7 @@ bool SupportIndependentPruning::IsPatternWorthConsidering(double new_support) {
     return new_support >= min_support_gain_;
 }
 
-bool SupportIndependentPruning::TryAdding(Pattern const& pattern) {
+bool SupportIndependentPruning::TryAdding(Pattern& pattern) {
     if (pattern.GetSupport() < min_support_gain_) {
         insufficient_support_gain_ = true;
         return false;

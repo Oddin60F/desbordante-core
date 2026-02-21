@@ -18,7 +18,7 @@ CSVConfig const kNCVOTER = CreateCsvConfig("ncvoter.csv", ',', true);
 
 CSVConfig const kAbalone = CreateCsvConfig("abalone.csv", ',', true);
 CSVConfig const kACShippingDates = CreateCsvConfig("ACShippingDates.csv", ',', true);
-CSVConfig const kAdult = CreateCsvConfig("adult1.csv", ';', true);
+CSVConfig const kAdult = CreateCsvConfig("adult_copy.csv", ';', true);
 CSVConfig const kAdult9attr = CreateCsvConfig("adult9attr.csv", ';', true);
 CSVConfig const kAnimalsBeverages = CreateCsvConfig("animals_beverages.csv", ',', true);
 CSVConfig const kBernoulliRelation = CreateCsvConfig("BernoulliRelation.csv", ',', true);
@@ -46,7 +46,7 @@ CSVConfig const kIowa25attr1kk = CreateCsvConfig("iowa25attr1kk.csv", ',', true)
 CSVConfig const kIowa450k = CreateCsvConfig("iowa450k.csv", ',', true);
 CSVConfig const kIowa550k = CreateCsvConfig("iowa550k.csv", ',', true);
 CSVConfig const kIowa650k = CreateCsvConfig("iowa650k.csv", ',', true);
-CSVConfig const kIris = CreateCsvConfig("iris.csv", ',', false);
+CSVConfig const kIris = CreateCsvConfig("iris.csv", ',', true);
 CSVConfig const kLegacyPayors = CreateCsvConfig("LegacyPayors.csv", '|', true);
 CSVConfig const kLetter = CreateCsvConfig("letter.csv", ',', false);
 CSVConfig const kLineItem = CreateCsvConfig("LineItem.csv", '|', true);

@@ -92,7 +92,7 @@ private:
     double max_level_support_drop_;
     bool insufficient_support_gain_;
     SupportMap support_map_;
-    std::unordered_set<Entries> visited_;
+    boost::unordered_flat_set<Entries, std::hash<Entries>> visited_;
 
 protected:
     Candidate current_candidate_;
@@ -105,7 +105,7 @@ public:
     void StartNewTableau(Candidate const& candidate) override;
     bool HasEnoughPatterns(std::vector<Pattern> const& tableau) override;
     bool IsPatternWorthConsidering(double new_support) override;
-    bool TryAdding(Pattern const& pattern) override;
+    bool TryAdding(Pattern& pattern) override;
     bool ValidForProcessing(Entries const& entries) override;
     bool ContinueGeneration(PatternTableau const& current_tableau) override;
 

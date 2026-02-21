@@ -35,8 +35,12 @@ public:
         return false;
     }
 
-    bool TryAdding(Pattern const& pattern) override {
-        return CalculateG1(pattern) <= max_g1_;
+    bool TryAdding(Pattern& pattern) override {
+        if (CalculateG1(pattern) > max_g1_) {
+            pattern.SetCover({});
+            return false;
+        }
+        return true;
     }
 
     bool ValidForProcessing([[maybe_unused]] Entries const& entries) override {

@@ -30,7 +30,7 @@ public:
 
     bool IsPatternWorthConsidering(double new_support) override;
 
-    bool TryAdding(Pattern const& pattern) override;
+    bool TryAdding(Pattern& pattern) override;
 
     bool ValidForProcessing(Entries const& entries) override;
 

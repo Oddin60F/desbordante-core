@@ -26,32 +26,6 @@
 #include "core/config/thread_number/type.h"
 
 namespace algos::cfdfinder {
-class ColumnMajorRecords {
-private:
-    std::vector<std::vector<model::ColumnIndex>> columns_;
-
-public:
-    ColumnMajorRecords(Rows const& original_rows) {
-        if (original_rows.empty()) return;
-
-        size_t num_rows = original_rows.size();
-        size_t num_cols = original_rows[0].size();
-
-        columns_.resize(num_cols);
-
-        for (size_t col = 0; col < num_cols; ++col) {
-            columns_[col].reserve(num_rows);
-
-            for (size_t row = 0; row < num_rows; ++row) {
-                columns_[col].push_back(original_rows[row][col]);
-            }
-        }
-    }
-
-    std::vector<model::ColumnIndex> const& get_column(size_t col) const {
-        return columns_[col];
-    }
-};
 
 class CFDFinder : public Algorithm {
 private:
@@ -93,15 +67,8 @@ private:
 
     PatternTableau GenerateTableau(boost::dynamic_bitset<> const& lhs_attributes,
                                    model::PLI const* lhs_pli, Row const& inverted_pli_rhs,
-                                   ColumnMajorRecords const& compressed_records_shared,
                                    std::shared_ptr<ExpansionStrategy> expansion_strategy,
-                                   std::shared_ptr<PruningStrategy> pruning_strategy,
-                                   RowsPtr records);
-
-    // std::vector<Cluster> DetermineCover(Pattern const& child_pattern,
-    //                                     Pattern const& current_pattern,
-    //                                     ColumnMajorRecords const& pli_records,
-    //                                     size_t replaced_pos) const;
+                                   std::shared_ptr<PruningStrategy> pruning_strategy);
 
     std::shared_ptr<ExpansionStrategy> InitExpansionStrategy(
             RowsPtr pli_records, InvertedClusterMaps const& inverted_cluster_maps);

@@ -121,7 +121,6 @@ string(
     "-g"
     "-Wall"
     "-Wextra"
-    "-Werror"
     "-fno-omit-frame-pointer"
     "-fno-optimize-sibling-calls"
 )

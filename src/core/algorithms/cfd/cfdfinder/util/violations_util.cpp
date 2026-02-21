@@ -11,7 +11,6 @@ size_t CalculateViolations(Pattern const& pattern, Row const& inverted_rhs_pli) 
     size_t violations = 0;
     std::unordered_map<size_t, size_t> rhs_cluster_counts;
     for (auto const& cluster : pattern.GetCover()) {
-        rhs_cluster_counts.reserve(cluster.size());
         size_t max_cluster_size = 0;
 
         for (auto tuple : cluster) {

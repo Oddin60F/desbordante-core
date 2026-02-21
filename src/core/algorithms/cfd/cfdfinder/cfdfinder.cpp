@@ -158,7 +158,6 @@ void CFDFinder::TraverseLatticePar(RowsPtr compressed_records_shared,
     auto result_receiver = InitResultStrategy();
     auto expansion_stategy =
             InitExpansionStrategy(compressed_records_shared, inverted_cluster_maps);
-    ColumnMajorRecords transported_rows(*compressed_records_shared);
 
     size_t num_results = 0;
     int height = levels.size();
@@ -175,17 +174,16 @@ void CFDFinder::TraverseLatticePar(RowsPtr compressed_records_shared,
             auto candidate = current_level.extract(current_level.begin()).value();
             auto const lhs_pli = GetLhsPli(pli_cache, candidate.lhs_, *plis_shared);
 
-            auto proccess_candidate = [this, &transported_rows, &inverted_plis_shared,
-                                       &compressed_records_shared, &expansion_stategy,
-                                       candidate = std::move(candidate),
+            auto proccess_candidate = [this, &inverted_plis_shared, &compressed_records_shared,
+                                       &expansion_stategy, candidate = std::move(candidate),
                                        lhs_pli = std::move(lhs_pli),
                                        pruning_strategy = pruning_stategy_base->Clone()]() mutable
                     -> std::pair<Candidate, std::optional<PatternTableau>> {
                 auto const inverted_pli_rhs = inverted_plis_shared->at(candidate.rhs_);
                 pruning_strategy->StartNewTableau(candidate);
-                PatternTableau pattern_tableau = GenerateTableau(
-                        candidate.lhs_, lhs_pli.get(), inverted_pli_rhs, transported_rows,
-                        expansion_stategy, pruning_strategy, compressed_records_shared);
+                PatternTableau pattern_tableau =
+                        GenerateTableau(candidate.lhs_, lhs_pli.get(), inverted_pli_rhs,
+                                        expansion_stategy, pruning_strategy);
 
                 if (!pruning_strategy->ContinueGeneration(pattern_tableau)) {
                     return {std::move(candidate), std::nullopt};
@@ -235,8 +233,6 @@ void CFDFinder::TraverseLatticeSeq(RowsPtr compressed_records_shared,
     auto result_receiver = InitResultStrategy();
     auto expansion_stategy =
             InitExpansionStrategy(compressed_records_shared, inverted_cluster_maps);
-    ColumnMajorRecords transported_rows(*compressed_records_shared);
-
     size_t num_results = 0;
     int height = levels.size();
     --height;
@@ -250,8 +246,7 @@ void CFDFinder::TraverseLatticeSeq(RowsPtr compressed_records_shared,
 
             pruning_stategy->StartNewTableau(candidate);
             auto pattern_tableau = GenerateTableau(candidate.lhs_, lhs_pli.get(), inverted_pli_rhs,
-                                                   transported_rows, expansion_stategy,
-                                                   pruning_stategy, compressed_records_shared);
+                                                   expansion_stategy, pruning_stategy);
 
             if (!pruning_stategy->ContinueGeneration(pattern_tableau)) {
                 continue;
@@ -470,10 +465,8 @@ CFDFinder::Lattice CFDFinder::GetLattice(PLIsPtr plis, RowsPtr compressed_record
 
 PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_attributes,
                                           model::PLI const* lhs_pli, Row const& inverted_pli_rhs,
-                                          ColumnMajorRecords const& compressed_records_shared,
                                           std::shared_ptr<ExpansionStrategy> expansion_strategy,
-                                          std::shared_ptr<PruningStrategy> pruning_strategy,
-                                          RowsPtr records) {
+                                          std::shared_ptr<PruningStrategy> pruning_strategy) {
     auto null_pattern = expansion_strategy->GenerateNullPattern(lhs_attributes);
     auto null_cover = EnrichPLI(lhs_pli, relation_->GetNumRows());
 
@@ -488,147 +481,31 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
     while (!frontier.Empty() && !pruning_strategy->HasEnoughPatterns(tableau)) {
         auto current_pattern = frontier.Poll();
 
-        if (pruning_strategy->TryAdding(current_pattern)) {
-            Frontier new_frontier;
-
-            boost::dynamic_bitset<> used_rows(relation_->GetNumRows());
-            for (auto row_id : current_pattern.GetCover() | std::views::join) {
-                used_rows.set(row_id);
-            }
-
-            while (!frontier.Empty()) {
-                auto pattern = frontier.Poll();
-
-                pattern.UpdateCover(used_rows);
-                if (pruning_strategy->IsPatternWorthConsidering(pattern.GetSupport())) {
-                    pattern.UpdateKeepers(inverted_pli_rhs);
-                    new_frontier.Emplace(std::move(pattern));
-                }
-            }
-
-            tableau.push_back(std::move(current_pattern));
-            frontier.Swap(new_frontier);
+        if (!pruning_strategy->TryAdding(current_pattern)) {
+            expansion_strategy->ExpandAndProcess(std::move(current_pattern), frontier,
+                                                 inverted_pli_rhs, *pruning_strategy);
             continue;
         }
-        {
-            auto parent_entries = current_pattern.GetEntries();
-            auto const& parent_cover = current_pattern.GetCover();
 
-            for (size_t i = 0; i < current_pattern.GetEntries().size(); ++i) {
-                auto const& item = current_pattern.GetEntries()[i];
-                if (item.entry->IsConstant()) {
-                    continue;
-                }
-                auto const& column = compressed_records_shared.get_column(parent_entries[i].id);
-                std::vector<size_t> cluster_first;
-                cluster_first.reserve(parent_cover.size());
-                for (auto const& cluster : parent_cover) {
-                    cluster_first.push_back(column[cluster[0]]);
-                }
+        Frontier new_frontier;
 
-                // auto process_child = [&](size_t replaced_pos,
-                //                          std::shared_ptr<Entry> replaced_entry) {
-                //     std::shared_ptr<Entry> buff_entry = replaced_entry;
-                //     std::swap(parent_entries[replaced_pos].entry, buff_entry);
+        boost::dynamic_bitset<> used_rows(relation_->GetNumRows());
+        for (auto row_id : current_pattern.GetCover() | std::views::join) {
+            used_rows.set(row_id);
+        }
 
-                //     if (!pruning_strategy->ValidForProcessing(parent_entries) ||
-                //         frontier.Contains(parent_entries)) {
-                //         std::swap(parent_entries[replaced_pos].entry, buff_entry);
-                //         return;
-                //     }
+        while (!frontier.Empty()) {
+            auto pattern = frontier.Poll();
 
-                //     auto&& [cover_mask, child_support] =
-                //             replaced_entry->GetCoverMask(parent_cover, cluster_first);
-
-                //     if (!pruning_strategy->IsPatternWorthConsidering(child_support)) {
-                //         std::swap(parent_entries[replaced_pos].entry, buff_entry);
-                //         return;
-                //     }
-
-                //     auto new_entries = parent_entries;
-                //     Pattern child(std::move(new_entries));
-                //     std::vector<Cluster> child_cover;
-                //     child_cover.reserve(cover_mask.count());
-                //     util::ForEachIndex(cover_mask, [&](size_t cluster_id) {
-                //         child_cover.push_back(parent_cover[cluster_id]);
-                //     });
-
-                //     child.SetCover(std::move(child_cover));
-                //     child.UpdateKeepers(inverted_pli_rhs);
-                //     frontier.Emplace(std::move(child));
-                //     std::swap(parent_entries[replaced_pos].entry, buff_entry);
-                // };
-                std::vector<int> unique_values;
-                std::unordered_set<int> seen;
-
-                unique_values.reserve(parent_cover.size());
-                for (auto const& cluster : parent_cover) {
-                    int value = (*records)[cluster[0]][item.id];
-                    if (seen.insert(value).second) {
-                        unique_values.push_back(value);
-                    }
-                }
-                // Строим отображение: значение -> индекс в results
-                std::unordered_map<int, size_t> value_to_index;
-                value_to_index.reserve(unique_values.size());
-                for (size_t i = 0; i < unique_values.size(); ++i) {
-                    value_to_index[unique_values[i]] = i;
-                }
-
-                // Сразу создаем results с нужным размером
-                std::vector<std::tuple<int, boost::dynamic_bitset<>, size_t>> results;
-                results.reserve(unique_values.size());
-                for (int constant : unique_values) {
-                    results.emplace_back(constant, boost::dynamic_bitset<>(parent_cover.size()), 0);
-                }
-
-                // Один проход по кластерам
-                for (size_t cluster_id = 0; cluster_id < parent_cover.size(); ++cluster_id) {
-                    int val = cluster_first[cluster_id];
-                    auto it = value_to_index.find(val);
-                    if (it != value_to_index.end()) {
-                        size_t idx = it->second;
-                        auto& [constant, mask, support] = results[idx];
-                        mask.set(cluster_id);
-                        support += parent_cover[cluster_id].size();
-                    }
-                }
-
-                for (auto [constant, cover_mask, child_support] : results) {
-                    std::shared_ptr<Entry> buff_entry = std::make_shared<ConstantEntry>(constant);
-                    std::swap(parent_entries[i].entry, buff_entry);
-
-                    if (!pruning_strategy->ValidForProcessing(parent_entries) ||
-                        frontier.Contains(parent_entries)) {
-                        std::swap(parent_entries[i].entry, buff_entry);
-                        continue;
-                    }
-
-                    // auto&& [cover_mask, child_support] =
-                    //         replaced_entry->GetCoverMask(parent_cover, cluster_first);
-
-                    if (!pruning_strategy->IsPatternWorthConsidering(child_support)) {
-                        std::swap(parent_entries[i].entry, buff_entry);
-                        continue;
-                    }
-
-                    auto new_entries = parent_entries;
-                    Pattern child(std::move(new_entries));
-                    std::vector<Cluster> child_cover;
-                    child_cover.reserve(cover_mask.count());
-                    util::ForEachIndex(cover_mask, [&](size_t cluster_id) {
-                        child_cover.push_back(parent_cover[cluster_id]);
-                    });
-
-                    child.SetCover(std::move(child_cover));
-                    child.UpdateKeepers(inverted_pli_rhs);
-                    frontier.Emplace(std::move(child));
-                    std::swap(parent_entries[i].entry, buff_entry);
-
-                    // process_child(i, std::make_shared<ConstantEntry>(value));
-                }
+            pattern.UpdateCover(used_rows);
+            if (pruning_strategy->IsPatternWorthConsidering(pattern.GetSupport())) {
+                pattern.UpdateKeepers(inverted_pli_rhs);
+                new_frontier.Emplace(std::move(pattern));
             }
         }
+
+        tableau.push_back(std::move(current_pattern));
+        frontier.Swap(new_frontier);
     }
 
     return PatternTableau(std::move(tableau), relation_->GetNumRows());
@@ -640,7 +517,8 @@ std::shared_ptr<ExpansionStrategy> CFDFinder::InitExpansionStrategy(
         case Expansion::constant:
             return std::make_shared<ConstantExpansion>(std::move(pli_records));
         case Expansion::range:
-            return std::make_shared<RangePatternExpansion>(inverted_cluster_maps);
+            return std::make_shared<RangePatternExpansion>(inverted_cluster_maps,
+                                                           std::move(pli_records));
         case Expansion::negative_constant:
             return std::make_shared<PositiveNegativeConstantExpansion>(std::move(pli_records));
         default:

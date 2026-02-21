@@ -13,7 +13,7 @@ public:
     virtual void StartNewTableau(Candidate const& candidate) = 0;
     virtual bool HasEnoughPatterns(std::vector<Pattern> const& tableau) = 0;
     virtual bool IsPatternWorthConsidering(double new_support) = 0;
-    virtual bool TryAdding(Pattern const& pattern) = 0;
+    virtual bool TryAdding(Pattern& pattern) = 0;
     virtual bool ValidForProcessing(Entries const& entries) = 0;
     virtual bool ContinueGeneration(PatternTableau const& currentTableau) = 0;
     virtual std::shared_ptr<PruningStrategy> Clone() const = 0;

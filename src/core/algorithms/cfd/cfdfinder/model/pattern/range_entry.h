@@ -59,21 +59,6 @@ public:
         return !(*this == other);
     }
 
-    std::pair<boost::dynamic_bitset<>, size_t> GetCoverMask(
-            std::vector<Cluster> const& parent_cover,
-            std::vector<size_t> const& column) const override {
-        boost::dynamic_bitset<> cover_mask(parent_cover.size());
-        size_t new_support = 0;
-        for (size_t cluster_id = 0; cluster_id < parent_cover.size(); ++cluster_id) {
-            auto const& cluster = parent_cover[cluster_id];
-            if (column[cluster_id] >= min_cluster_ && max_cluster_ <= column[cluster_id]) {
-                cover_mask.set(cluster_id);
-                new_support += parent_cover[cluster_id].size();
-            }
-        }
-        return {std::move(cover_mask), new_support};
-    }
-
     size_t Hash() const override {
         size_t hash = 0;
 
@@ -85,18 +70,35 @@ public:
     }
 
     std::string ToString(InvertedClusterMap const& cluster_map) const override {
-        if (min_cluster_ == 0 && max_cluster_ + 1 == sorted_cluster_ids_->size()) {
-            return std::string(kWildCard);
-        }
+        // if (min_cluster_ == 0 && max_cluster_ + 1 == sorted_cluster_ids_->size()) {
+        //     return std::string(kWildCard);
+        // }
         std::string lower_bound = cluster_map.at((*sorted_cluster_ids_)[min_cluster_]);
 
-        if (min_cluster_ == max_cluster_) {
-            return lower_bound;
-        }
+        // if (min_cluster_ == max_cluster_) {
+        //     return lower_bound;
+        // }
         std::string upper_bound = cluster_map.at((*sorted_cluster_ids_)[max_cluster_]);
         return "[" + (!lower_bound.empty() ? lower_bound : std::string(kNullRepresentation)) +
                " - " + (!upper_bound.empty() ? upper_bound : std::string(kNullRepresentation)) +
                "]";
+    }
+
+    int GetTypeRank() const override {
+        return 3;
+    }
+
+    int CompareTo(Entry const& other) const override {
+        int rank = GetTypeRank();
+        int other_rank = other.GetTypeRank();
+        if (rank != other_rank) return rank - other_rank;
+
+        auto const& other_range = static_cast<RangeEntry const&>(other);
+        if (min_cluster_ != other_range.min_cluster_)
+            return min_cluster_ < other_range.min_cluster_ ? -1 : 1;
+        if (max_cluster_ != other_range.max_cluster_)
+            return max_cluster_ < other_range.max_cluster_ ? -1 : 1;
+        return 0;
     }
 };
 }  // namespace algos::cfdfinder

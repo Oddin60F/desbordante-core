@@ -41,24 +41,25 @@ public:
         return true;
     }
 
+    int GetTypeRank() const override {
+        return 1;
+    }
+
+    int CompareTo(Entry const& other) const override {
+        int rank = GetTypeRank();
+        int other_rank = other.GetTypeRank();
+        if (rank != other_rank) return rank - other_rank;
+
+        auto const& other_constant = static_cast<ConstantEntry const&>(other);
+        if (constant_ < other_constant.constant_) return -1;
+        if (constant_ > other_constant.constant_) return 1;
+        return 0;
+    }
+
     std::string ToString(InvertedClusterMap const& cluster_map) const override {
         std::string value = cluster_map.at(constant_);
 
         return !value.empty() ? value : std::string(kNullRepresentation);
-    }
-
-    std::pair<boost::dynamic_bitset<>, size_t> GetCoverMask(
-            std::vector<Cluster> const& parent_cover,
-            std::vector<size_t> const& column) const override {
-        boost::dynamic_bitset<> cover_mask(parent_cover.size());
-        size_t new_support = 0;
-        for (size_t cluster_id = 0; cluster_id < parent_cover.size(); ++cluster_id) {
-            if (column[cluster_id] == constant_) {
-                cover_mask.set(cluster_id);
-                new_support += parent_cover[cluster_id].size();
-            }
-        }
-        return {std::move(cover_mask), new_support};
     }
 };
 }  // namespace algos::cfdfinder

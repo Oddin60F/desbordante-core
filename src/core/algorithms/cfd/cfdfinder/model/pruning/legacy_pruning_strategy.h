@@ -28,11 +28,11 @@ public:
 
     bool HasEnoughPatterns([[maybe_unused]] std::vector<Pattern> const& tableau) override;
 
-    bool IsPatternWorthConsidering(double new_support) override;
+    bool IsPatternWorthConsidering(double new_support) const override;
 
     bool TryAdding(Pattern& pattern) override;
 
-    bool ValidForProcessing(Entries const& entries) override;
+    bool ValidForProcessing(ValidationContext const& entries) override;
 
     bool ContinueGeneration(PatternTableau const& currentTableau) override;
 

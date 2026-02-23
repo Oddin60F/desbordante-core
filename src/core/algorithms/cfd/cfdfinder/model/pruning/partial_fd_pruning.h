@@ -31,7 +31,7 @@ public:
         return !tableau.empty();
     }
 
-    bool IsPatternWorthConsidering([[maybe_unused]] double new_support) override {
+    bool IsPatternWorthConsidering([[maybe_unused]] double new_support) const override {
         return false;
     }
 
@@ -43,7 +43,7 @@ public:
         return true;
     }
 
-    bool ValidForProcessing([[maybe_unused]] Entries const& entries) override {
+    bool ValidForProcessing([[maybe_unused]] ValidationContext const& entries) override {
         return false;
     }
 

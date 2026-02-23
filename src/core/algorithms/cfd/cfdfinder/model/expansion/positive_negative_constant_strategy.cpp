@@ -2,198 +2,106 @@
 
 #include <cstddef>
 
+#include <boost/unordered/unordered_flat_map.hpp>
+
 #include "core/algorithms/cfd/cfdfinder/model/pattern/constant_entry.h"
 #include "core/algorithms/cfd/cfdfinder/model/pattern/negative_constant_entry.h"
 
 namespace algos::cfdfinder {
+void PositiveNegativeConstantExpansion::ProcessForId(Entries& buffer_entries, size_t replaced_pos,
+                                                     Frontier& frontier,
+                                                     Row const& inverted_pli_rhs,
+                                                     PruningStrategy& pruning_strategy, size_t id,
+                                                     std::vector<int>&& valid_constants,
+                                                     std::vector<Cluster> const& cover) const {
+    std::vector<size_t> cluster_representatives = GetClusterRepresentatives(id, cover);
 
-void PositiveNegativeConstantExpansion::ExpandAndProcess(Pattern parent_pattern, Frontier& frontier,
+    std::vector<int> final_constants = FilterForSupport(
+            std::move(valid_constants), pruning_strategy, cluster_representatives, cover);
+
+    if (final_constants.empty()) {
+        return;
+    }
+    std::vector<std::pair<int, boost::dynamic_bitset<>>> results =
+            CalculateCoverMasks(std::move(final_constants), cluster_representatives, cover);
+
+    for (auto const& [constant, cover_mask] : results) {
+        Entries new_entries = buffer_entries;
+        new_entries[replaced_pos].entry = std::make_shared<NegativeConstantEntry>(constant);
+
+        Pattern child(std::move(new_entries));
+        auto inverted_cover_mask = ~std::move(cover_mask);
+        std::vector<Cluster> child_cover;
+        child_cover.reserve(inverted_cover_mask.count());
+        util::ForEachIndex(inverted_cover_mask,
+                           [&](size_t cluster_id) { child_cover.push_back(cover[cluster_id]); });
+
+        child.SetCover(std::move(child_cover));
+        child.UpdateKeepers(inverted_pli_rhs);
+        frontier.Emplace(std::move(child));
+    }
+}
+
+std::vector<int> PositiveNegativeConstantExpansion::FilterForSupport(
+        std::vector<int>&& valid_constants, PruningStrategy const& pruning_strategy,
+        std::vector<size_t> const& cluster_representatives,
+        std::vector<Cluster> const& cover) const {
+    boost::unordered_flat_map<int, size_t> accumulated_support;
+    accumulated_support.reserve(valid_constants.size());
+    for (int val : valid_constants) {
+        accumulated_support[val] = 0;
+    }
+
+    for (size_t cluster_id = 0; cluster_id < cover.size(); ++cluster_id) {
+        int constant = cluster_representatives[cluster_id];
+        if (auto it = accumulated_support.find(constant); it != accumulated_support.end()) {
+            it->second += cover[cluster_id].size();
+        }
+    }
+    auto const num_rows = columns_.GetColumn(0).size();
+    std::vector<int> final_values;
+    final_values.reserve(valid_constants.size());
+    for (int val : valid_constants) {
+        size_t support = accumulated_support[val];
+        if (pruning_strategy.IsPatternWorthConsidering(num_rows - support)) {
+            final_values.push_back(val);
+        }
+    }
+    return final_values;
+}
+
+void PositiveNegativeConstantExpansion::ExpandAndProcess(Pattern&& parent_pattern,
+                                                         Frontier& frontier,
                                                          Row const& inverted_pli_rhs,
-                                                         PruningStrategy& pruning_strategy) const {
+                                                         PruningStrategy& pruning_strategy) {
     auto parent_entries = parent_pattern.GetEntries();
-    auto const& parent_cover = parent_pattern.GetCover();
+    auto copy_parent_entries = std::make_shared<Entries>(parent_pattern.GetEntries());
 
-    for (auto& [id, entry] : parent_entries) {
-        if (entry->IsConstant()) {
-            continue;
-        }
-        auto const& column = columns_.GetColumn(id);
-
-        std::vector<int> unique_values;
-        std::unordered_set<int> seen;
-
-        unique_values.reserve(parent_cover.size());
-        for (auto const& cluster : parent_cover) {
-            int value = column[cluster[0]];
-            if (seen.insert(value).second) {
-                unique_values.push_back(value);
-            }
-        }
-        std::vector<int> valid_values;
-        valid_values.reserve(unique_values.size());
-        for (auto value : unique_values) {
-            std::shared_ptr<Entry> buff_entry = std::make_shared<ConstantEntry>(value);
-            std::swap(entry, buff_entry);
-            // ||frontier.Contains(parent_entries)
-            if (!pruning_strategy.ValidForProcessing(parent_entries) ||
-                frontier.Contains(parent_entries)) {
-                std::swap(entry, buff_entry);
-                continue;
-            }
-            std::swap(entry, buff_entry);
-            valid_values.push_back(value);
-        }
-
-        if (valid_values.empty()) {
+    for (size_t i = 0; i < parent_entries.size(); ++i) {
+        auto const& item = parent_entries[i];
+        if (item.entry->IsConstant()) {
             continue;
         }
 
-        {
-            std::unordered_map<int, size_t> support_map;
-            support_map.reserve(valid_values.size());
-            for (int val : valid_values) {
-                support_map[val] = 0;  // инициализируем нулевой поддержкой
-            }
+        std::vector<int> unique_ids = CalculateUniqueConstants(item.id, parent_pattern.GetCover());
+        auto valid_pos_constants = FilterValidConstants<int>(
+                parent_entries, copy_parent_entries, i, unique_ids, frontier, pruning_strategy,
+                [](int val) { return std::make_shared<ConstantEntry>(val); });
 
-            std::vector<size_t> cluster_first;
-            cluster_first.reserve(parent_cover.size());
-            for (auto const& cluster : parent_cover) {
-                cluster_first.push_back(column[cluster[0]]);
-            }
-
-            for (size_t cluster_id = 0; cluster_id < parent_cover.size(); ++cluster_id) {
-                int val = cluster_first[cluster_id];
-                auto it = support_map.find(val);
-                if (it != support_map.end()) {
-                    it->second += parent_cover[cluster_id].size();  // накапливаем поддержку
-                }
-            }
-
-            // Шаг 2. Фильтрация по поддержке (IsPatternWorthConsidering)
-            std::vector<int> final_values;
-            final_values.reserve(valid_values.size());
-            for (int val : valid_values) {
-                size_t support = support_map[val];  // поддержка уже посчитана
-                if (pruning_strategy.IsPatternWorthConsidering(support)) {
-                    final_values.push_back(val);
-                }
-            }
-
-            // Шаг 3. Создание results только для отфильтрованных значений
-            std::vector<std::pair<int, boost::dynamic_bitset<>>> results;
-            results.reserve(final_values.size());
-            for (int val : final_values) {
-                results.emplace_back(val, boost::dynamic_bitset<>(parent_cover.size()));
-            }
-
-            // Шаг 4. Построение отображения значение → индекс в results
-            std::unordered_map<int, size_t> value_to_idx;
-            value_to_idx.reserve(final_values.size());
-            for (size_t idx = 0; idx < final_values.size(); ++idx) {
-                value_to_idx[final_values[idx]] = idx;
-            }
-            for (size_t cluster_id = 0; cluster_id < parent_cover.size(); ++cluster_id) {
-                int val = cluster_first[cluster_id];
-                auto it = value_to_idx.find(val);
-                if (it != value_to_idx.end()) {
-                    size_t idx = it->second;
-                    std::get<1>(results[idx]).set(cluster_id);  // устанавливаем соответствующий бит
-                }
-            }
-
-            // Шаг 6. Обработка финальных results (создание потомков)
-            for (auto [constant, cover_mask] : results) {
-                std::shared_ptr<Entry> buff_entry = std::make_shared<ConstantEntry>(constant);
-                std::swap(entry, buff_entry);
-
-                auto new_entries = parent_entries;
-                Pattern child(std::move(new_entries));
-                std::vector<Cluster> child_cover;
-                child_cover.reserve(cover_mask.count());
-                util::ForEachIndex(cover_mask, [&](size_t cluster_id) {
-                    child_cover.push_back(parent_cover[cluster_id]);
-                });
-
-                child.SetCover(std::move(child_cover));
-                child.UpdateKeepers(inverted_pli_rhs);
-                frontier.Emplace(std::move(child));
-                std::swap(entry, buff_entry);
-            }
+        if (!valid_pos_constants.empty()) {
+            ConstantExpansion::ProcessForId(
+                    parent_entries, i, frontier, inverted_pli_rhs, pruning_strategy, item.id,
+                    std::move(valid_pos_constants), parent_pattern.GetCover());
         }
 
-        {
-            std::unordered_map<int, size_t> support_map;
-            support_map.reserve(valid_values.size());
-            for (int val : valid_values) {
-                support_map[val] = 0;  // инициализируем нулевой поддержкой
-            }
+        auto valid_neg_constants = FilterValidConstants<int>(
+                parent_entries, copy_parent_entries, i, unique_ids, frontier, pruning_strategy,
+                [](int val) { return std::make_shared<NegativeConstantEntry>(val); });
 
-            std::vector<size_t> cluster_first;
-            cluster_first.reserve(parent_cover.size());
-            for (auto const& cluster : parent_cover) {
-                cluster_first.push_back(column[cluster[0]]);
-            }
-
-            for (size_t cluster_id = 0; cluster_id < parent_cover.size(); ++cluster_id) {
-                int val = cluster_first[cluster_id];
-                auto it = support_map.find(val);
-                if (it != support_map.end()) {
-                    it->second += parent_cover[cluster_id].size();  // накапливаем поддержку
-                }
-            }
-
-            // Шаг 2. Фильтрация по поддержке (IsPatternWorthConsidering)
-            std::vector<int> final_values;
-            final_values.reserve(valid_values.size());
-            for (int val : valid_values) {
-                size_t support = support_map[val];  // поддержка уже посчитана
-                if (pruning_strategy.IsPatternWorthConsidering(columns_.GetColumn(0).size() -
-                                                               support)) {
-                    final_values.push_back(val);
-                }
-            }
-
-            // Шаг 3. Создание results только для отфильтрованных значений
-            std::vector<std::pair<int, boost::dynamic_bitset<>>> results;
-            results.reserve(final_values.size());
-            for (int val : final_values) {
-                results.emplace_back(val, boost::dynamic_bitset<>(parent_cover.size()));
-            }
-
-            // Шаг 4. Построение отображения значение → индекс в results
-            std::unordered_map<int, size_t> value_to_idx;
-            value_to_idx.reserve(final_values.size());
-            for (size_t idx = 0; idx < final_values.size(); ++idx) {
-                value_to_idx[final_values[idx]] = idx;
-            }
-            for (size_t cluster_id = 0; cluster_id < parent_cover.size(); ++cluster_id) {
-                int val = cluster_first[cluster_id];
-                auto it = value_to_idx.find(val);
-                if (it != value_to_idx.end()) {
-                    size_t idx = it->second;
-                    std::get<1>(results[idx]).set(cluster_id);  // устанавливаем соответствующий бит
-                }
-            }
-
-            // Шаг 6. Обработка финальных results (создание потомков)
-            for (auto&& [constant, cover_mask] : results) {
-                std::shared_ptr<Entry> buff_entry =
-                        std::make_shared<NegativeConstantEntry>(constant);
-                std::swap(entry, buff_entry);
-
-                auto new_entries = parent_entries;
-                Pattern child(std::move(new_entries));
-                std::vector<Cluster> child_cover;
-                child_cover.reserve(cover_mask.count());
-                util::ForEachIndex(~cover_mask, [&](size_t cluster_id) {
-                    child_cover.push_back(parent_cover[cluster_id]);
-                });
-
-                child.SetCover(std::move(child_cover));
-                child.UpdateKeepers(inverted_pli_rhs);
-                frontier.Emplace(std::move(child));
-                std::swap(entry, buff_entry);
-            }
+        if (!valid_neg_constants.empty()) {
+            PositiveNegativeConstantExpansion::ProcessForId(
+                    parent_entries, i, frontier, inverted_pli_rhs, pruning_strategy, item.id,
+                    std::move(valid_neg_constants), parent_pattern.GetCover());
         }
     }
 }

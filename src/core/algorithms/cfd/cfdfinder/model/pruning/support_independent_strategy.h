@@ -86,13 +86,14 @@ private:
 
     using SupportMap = std::variant<std::unordered_map<Candidate, double>,
                                     std::shared_ptr<ThreadSafeSupportMap>>;
+
     size_t max_patterns_;
     double min_support_gain_;
     double min_confidence_;
     double max_level_support_drop_;
     bool insufficient_support_gain_;
     SupportMap support_map_;
-    boost::unordered_flat_set<Entries, std::hash<Entries>> visited_;
+    boost::unordered_flat_set<ReplacedEntries, std::hash<ReplacedEntries>> visited_;
 
 protected:
     Candidate current_candidate_;
@@ -104,9 +105,9 @@ public:
 
     void StartNewTableau(Candidate const& candidate) override;
     bool HasEnoughPatterns(std::vector<Pattern> const& tableau) override;
-    bool IsPatternWorthConsidering(double new_support) override;
+    bool IsPatternWorthConsidering(double new_support) const override;
     bool TryAdding(Pattern& pattern) override;
-    bool ValidForProcessing(Entries const& entries) override;
+    bool ValidForProcessing(ValidationContext const& entries) override;
     bool ContinueGeneration(PatternTableau const& current_tableau) override;
 
     std::shared_ptr<PruningStrategy> Clone() const override {

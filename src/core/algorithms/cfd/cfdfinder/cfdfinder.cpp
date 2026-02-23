@@ -167,53 +167,60 @@ void CFDFinder::TraverseLatticePar(RowsPtr compressed_records_shared,
         auto& current_level = levels[height];
 
         boost::asio::thread_pool thread_pool(threads_num_);
-        std::vector<std::future<std::pair<Candidate, std::optional<PatternTableau>>>> futures;
-        futures.reserve(current_level.size());
+        size_t const batch_size = static_cast<size_t>(threads_num_) * 4;
 
         while (!current_level.empty()) {
-            auto candidate = current_level.extract(current_level.begin()).value();
-            auto const lhs_pli = GetLhsPli(pli_cache, candidate.lhs_, *plis_shared);
+            std::vector<std::future<std::pair<Candidate, std::optional<PatternTableau>>>> futures;
+            futures.reserve(std::min(batch_size, current_level.size()));
 
-            auto proccess_candidate = [this, &inverted_plis_shared, &compressed_records_shared,
-                                       &expansion_stategy, candidate = std::move(candidate),
-                                       lhs_pli = std::move(lhs_pli),
-                                       pruning_strategy = pruning_stategy_base->Clone()]() mutable
-                    -> std::pair<Candidate, std::optional<PatternTableau>> {
-                auto const inverted_pli_rhs = inverted_plis_shared->at(candidate.rhs_);
-                pruning_strategy->StartNewTableau(candidate);
-                PatternTableau pattern_tableau =
-                        GenerateTableau(candidate.lhs_, lhs_pli.get(), inverted_pli_rhs,
-                                        expansion_stategy, pruning_strategy);
+            for (size_t i = 0; i < batch_size && !current_level.empty(); ++i) {
+                auto candidate = current_level.extract(current_level.begin()).value();
+                auto lhs_pli = GetLhsPli(pli_cache, candidate.lhs_, *plis_shared);
 
-                if (!pruning_strategy->ContinueGeneration(pattern_tableau)) {
-                    return {std::move(candidate), std::nullopt};
+                auto proccess_candidate = [this, &inverted_plis_shared, &compressed_records_shared,
+                                           &expansion_stategy, candidate = std::move(candidate),
+                                           lhs_pli = std::move(lhs_pli),
+                                           pruning_strategy =
+                                                   pruning_stategy_base->Clone()]() mutable
+                        -> std::pair<Candidate, std::optional<PatternTableau>> {
+                    auto const inverted_pli_rhs = inverted_plis_shared->at(candidate.rhs_);
+                    pruning_strategy->StartNewTableau(candidate);
+                    PatternTableau pattern_tableau =
+                            GenerateTableau(candidate.lhs_, lhs_pli.get(), inverted_pli_rhs,
+                                            expansion_stategy, pruning_strategy);
+
+                    if (!pruning_strategy->ContinueGeneration(pattern_tableau)) {
+                        return {std::move(candidate), std::nullopt};
+                    }
+                    return {std::move(candidate), std::move(pattern_tableau)};
+                };
+
+                std::packaged_task<std::pair<Candidate, std::optional<PatternTableau>>()> task(
+                        std::move(proccess_candidate));
+                futures.push_back(task.get_future());
+                boost::asio::post(thread_pool, std::move(task));
+            }  // === Обрабатываем результаты батча СРАЗУ ===
+            // Каждый future.get() блокируется до готовности, но вычисления идут параллельно
+            // в thread_pool. После get() объект PatternTableau извлечён и может быть
+            // обработан/уничтожен, освобождая память.
+            for (auto& future : futures) {
+                auto [candidate, pattern_tableau_opt] = future.get();
+                if (!pattern_tableau_opt) {
+                    continue;
                 }
-                return {std::move(candidate), std::move(pattern_tableau)};
-            };
-
-            std::packaged_task<std::pair<Candidate, std::optional<PatternTableau>>()> task(
-                    std::move(proccess_candidate));
-            futures.push_back(task.get_future());
-            boost::asio::post(thread_pool, std::move(task));
+                if (height > 0) {
+                    auto& target_level = levels[height - 1];
+                    for (auto&& subset : utils::GenerateLhsSubsets(candidate.lhs_)) {
+                        target_level.emplace(std::move(subset), candidate.rhs_);
+                    }
+                }
+                ++num_results;
+                result_receiver->ReceiveResult(std::move(candidate), *pattern_tableau_opt);
+            }
+            // futures уничтожаются здесь → вся промежуточная память батча освобождена
         }
 
         thread_pool.join();
-
-        for (auto& future : futures) {
-            auto [candidate, pattern_tableau_opt] = future.get();
-            if (!pattern_tableau_opt) {
-                continue;
-            }
-
-            if (height > 0) {
-                auto& target_level = levels[height - 1];
-                for (auto&& subset : utils::GenerateLhsSubsets(candidate.lhs_)) {
-                    target_level.emplace(std::move(subset), candidate.rhs_);
-                }
-            }
-            ++num_results;
-            result_receiver->ReceiveResult(std::move(candidate), *pattern_tableau_opt);
-        }
 
         auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(
                 std::chrono::system_clock::now() - start_level_time);
@@ -517,6 +524,8 @@ std::shared_ptr<ExpansionStrategy> CFDFinder::InitExpansionStrategy(
         case Expansion::constant:
             return std::make_shared<ConstantExpansion>(std::move(pli_records));
         case Expansion::range:
+            return std::make_shared<RangePatternExpansion>(inverted_cluster_maps,
+                                                           std::move(pli_records));
             return std::make_shared<RangePatternExpansion>(inverted_cluster_maps,
                                                            std::move(pli_records));
         case Expansion::negative_constant:

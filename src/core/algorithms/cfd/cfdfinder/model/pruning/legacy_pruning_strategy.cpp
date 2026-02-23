@@ -20,7 +20,7 @@ bool LegacyPruning::HasEnoughPatterns([[maybe_unused]] std::vector<Pattern> cons
     return cumulative_support_ >= min_support_ * num_tuples_;
 }
 
-bool LegacyPruning::IsPatternWorthConsidering(double new_support) {
+bool LegacyPruning::IsPatternWorthConsidering(double new_support) const {
     return new_support > 0;
 }
 
@@ -34,11 +34,11 @@ bool LegacyPruning::TryAdding(Pattern& pattern) {
     return false;
 }
 
-bool LegacyPruning::ValidForProcessing(Entries const& entries) {
-    auto buff_entries = entries;
+bool LegacyPruning::ValidForProcessing(ValidationContext const& entries) {
+    auto buff_entries = entries.entries_buffer;
     std::shared_ptr<Entry> buff_entry = std::make_shared<VariableEntry>();
-    for (size_t i = 0; i < entries.size(); ++i) {
-        if (entries[i].entry->IsConstant()) {
+    for (size_t i = 0; i < buff_entries.size(); ++i) {
+        if (buff_entries[i].entry->IsConstant()) {
             std::swap(buff_entries[i].entry, buff_entry);
             if (!visited_.contains(buff_entries)) {
                 return false;

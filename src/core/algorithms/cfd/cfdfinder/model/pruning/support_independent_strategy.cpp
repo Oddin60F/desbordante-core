@@ -36,7 +36,7 @@ bool SupportIndependentPruning::HasEnoughPatterns(std::vector<Pattern> const& ta
     return insufficient_support_gain_ || (tableau.size() >= max_patterns_);
 }
 
-bool SupportIndependentPruning::IsPatternWorthConsidering(double new_support) {
+bool SupportIndependentPruning::IsPatternWorthConsidering(double new_support) const {
     return new_support >= min_support_gain_;
 }
 
@@ -53,8 +53,10 @@ bool SupportIndependentPruning::TryAdding(Pattern& pattern) {
     return true;
 }
 
-bool SupportIndependentPruning::ValidForProcessing(Entries const& entries) {
-    return visited_.insert(entries).second;
+bool SupportIndependentPruning::ValidForProcessing(ValidationContext const& entries) {
+    ReplacedEntries replaces_entries{entries.parent_entries,
+                                     {entries.replaced_index, entries.new_entry}};
+    return visited_.insert(std::move(replaces_entries)).second;
 }
 
 bool SupportIndependentPruning::ContinueGeneration(PatternTableau const& current_tableau) {

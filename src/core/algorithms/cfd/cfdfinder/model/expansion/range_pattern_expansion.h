@@ -18,9 +18,10 @@ private:
 public:
     explicit RangePatternExpansion(InvertedClusterMaps const& inverted_cluster_maps,
                                    RowsPtr&& compressed_records);
+
     Pattern GenerateNullPattern(BitSet const& attributes) const override;
-    void ExpandAndProcess(Pattern parent_pattern, Frontier& frontier, Row const& inverted_pli_rhs,
-                          PruningStrategy& pruning_strategy) const override;
+    void ExpandAndProcess(Pattern&& parent_pattern, Frontier& frontier, Row const& inverted_pli_rhs,
+                          PruningStrategy& pruning_strategy) override;
 };
 
 }  // namespace algos::cfdfinder

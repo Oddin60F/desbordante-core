@@ -10,7 +10,7 @@ namespace algos::cfdfinder {
 class PruningStrategy {
 public:
     struct ValidationContext {
-        Entries& entries_buffer;
+        Entries const& entries_buffer;
         size_t replaced_index;
         std::shared_ptr<Entry> const& new_entry;
         std::shared_ptr<Entries> const& parent_entries;

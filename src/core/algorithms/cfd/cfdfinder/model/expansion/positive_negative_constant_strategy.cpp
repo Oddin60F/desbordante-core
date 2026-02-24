@@ -6,11 +6,12 @@
 
 #include "core/algorithms/cfd/cfdfinder/model/pattern/constant_entry.h"
 #include "core/algorithms/cfd/cfdfinder/model/pattern/negative_constant_entry.h"
+#include "core/algorithms/cfd/cfdfinder/util/violations_util.h"
 
 namespace algos::cfdfinder {
 void PositiveNegativeConstantExpansion::ProcessForId(Entries& buffer_entries, size_t replaced_pos,
                                                      Frontier& frontier,
-                                                     Row const& inverted_pli_rhs,
+                                                     std::vector<size_t> const& cluster_violations,
                                                      PruningStrategy& pruning_strategy, size_t id,
                                                      std::vector<int>&& valid_constants,
                                                      std::vector<Cluster> const& cover) const {
@@ -37,7 +38,11 @@ void PositiveNegativeConstantExpansion::ProcessForId(Entries& buffer_entries, si
                            [&](size_t cluster_id) { child_cover.push_back(cover[cluster_id]); });
 
         child.SetCover(std::move(child_cover));
-        child.UpdateKeepers(inverted_pli_rhs);
+        size_t new_keepers = 0;
+        util::ForEachIndex(cover_mask, [&](size_t cluster_id) {
+            new_keepers += cluster_violations[cluster_id];
+        });
+        child.SetKeepers(new_keepers);
         frontier.Emplace(std::move(child));
     }
 }
@@ -76,11 +81,16 @@ void PositiveNegativeConstantExpansion::ExpandAndProcess(Pattern&& parent_patter
                                                          PruningStrategy& pruning_strategy) {
     auto parent_entries = parent_pattern.GetEntries();
     auto copy_parent_entries = std::make_shared<Entries>(parent_pattern.GetEntries());
+    std::vector<size_t> cluster_violations;
 
     for (size_t i = 0; i < parent_entries.size(); ++i) {
         auto const& item = parent_entries[i];
         if (item.entry->IsConstant()) {
             continue;
+        }
+        if (cluster_violations.empty()) {
+            cluster_violations =
+                    utils::CalculateViolations(parent_pattern.GetCover(), inverted_pli_rhs);
         }
 
         std::vector<int> unique_ids = CalculateUniqueConstants(item.id, parent_pattern.GetCover());
@@ -90,7 +100,7 @@ void PositiveNegativeConstantExpansion::ExpandAndProcess(Pattern&& parent_patter
 
         if (!valid_pos_constants.empty()) {
             ConstantExpansion::ProcessForId(
-                    parent_entries, i, frontier, inverted_pli_rhs, pruning_strategy, item.id,
+                    parent_entries, i, frontier, cluster_violations, pruning_strategy, item.id,
                     std::move(valid_pos_constants), parent_pattern.GetCover());
         }
 
@@ -100,7 +110,7 @@ void PositiveNegativeConstantExpansion::ExpandAndProcess(Pattern&& parent_patter
 
         if (!valid_neg_constants.empty()) {
             PositiveNegativeConstantExpansion::ProcessForId(
-                    parent_entries, i, frontier, inverted_pli_rhs, pruning_strategy, item.id,
+                    parent_entries, i, frontier, cluster_violations, pruning_strategy, item.id,
                     std::move(valid_neg_constants), parent_pattern.GetCover());
         }
     }

@@ -14,15 +14,15 @@ private:
     double min_support_;
     double min_confidence_;
     double cumulative_support_;
-    size_t num_tuples_;
+    size_t num_rows_;
     boost::unordered_flat_set<Entries, std::hash<Entries>> visited_;
 
 public:
-    LegacyPruning(double min_support, double min_confidence, size_t num_tuples)
+    LegacyPruning(double min_support, double min_confidence, size_t num_rows)
         : min_support_(min_support),
           min_confidence_(min_confidence),
           cumulative_support_(0),
-          num_tuples_(num_tuples) {}
+          num_rows_(num_rows) {}
 
     void StartNewTableau([[maybe_unused]] Candidate const& candidate) override;
 
@@ -32,7 +32,7 @@ public:
 
     bool TryAdding(Pattern& pattern) override;
 
-    bool ValidForProcessing(ValidationContext const& entries) override;
+    bool ValidForProcessing(ValidationContext const& params) override;
 
     bool ContinueGeneration(PatternTableau const& currentTableau) override;
 

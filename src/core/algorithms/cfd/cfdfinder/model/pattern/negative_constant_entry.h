@@ -46,19 +46,15 @@ public:
                (!value.empty() ? value : std::string(kNullRepresentation));
     }
 
-    int GetTypeRank() const override {
+    int GetOrderRank() const override {
         return 2;
     }
 
-    int CompareTo(Entry const& other) const override {
-        int rank = GetTypeRank();
-        int other_rank = other.GetTypeRank();
-        if (rank != other_rank) return rank - other_rank;
+    bool operator<(Entry const& other) const override {
+        if (GetOrderRank() != other.GetOrderRank()) return GetOrderRank() < other.GetOrderRank();
 
         auto const& other_negative = static_cast<NegativeConstantEntry const&>(other);
-        if (constant_ < other_negative.constant_) return -1;
-        if (constant_ > other_negative.constant_) return 1;
-        return 0;
+        return constant_ < other_negative.constant_;
     }
 };
 }  // namespace algos::cfdfinder

@@ -19,11 +19,11 @@ protected:
 public:
     virtual ~Entry() = default;
 
+    virtual inline int GetOrderRank() const = 0;
     virtual bool Matches(size_t value) const = 0;
     virtual size_t Hash() const = 0;
     virtual bool operator==(Entry const& other) const = 0;
-    virtual int CompareTo(Entry const& other) const = 0;
-    virtual inline int GetTypeRank() const = 0;
+    virtual bool operator<(Entry const& other) const = 0;
     virtual bool IsConstant() const = 0;
     virtual std::string ToString(InvertedClusterMap const& cluster_map) const = 0;
 };

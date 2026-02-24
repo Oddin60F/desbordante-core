@@ -13,6 +13,7 @@ extern CSVConfig const kBreastCancer;
 extern CSVConfig const kBridges;
 extern CSVConfig const kWine;
 extern CSVConfig const kNCVOTER;
+extern CSVConfig const kNursery;
 
 extern CSVConfig const kCIPublicHighway;
 extern CSVConfig const kCIPublicHighway10k;

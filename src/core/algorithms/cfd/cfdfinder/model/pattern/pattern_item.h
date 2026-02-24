@@ -16,6 +16,10 @@ struct PatternItem {
     }
 
     bool operator!=(PatternItem const& other) const = default;
+
+    bool operator<(PatternItem const& other) const {
+        return *entry < *other.entry;
+    }
 };
 
 using Entries = std::vector<PatternItem>;

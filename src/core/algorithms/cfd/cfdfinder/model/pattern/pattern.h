@@ -1,10 +1,10 @@
 #pragma once
 
-#include <compare>
 #include <cstddef>
-#include <ranges>
-#include <unordered_set>
+#include <tuple>
 #include <vector>
+
+#include <boost/dynamic_bitset.hpp>
 
 #include "core/algorithms/cfd/cfdfinder/model/pattern/pattern_item.h"
 #include "core/algorithms/cfd/cfdfinder/types/cluster.h"
@@ -34,11 +34,14 @@ public:
     Pattern& operator=(Pattern&& other) noexcept = default;
     Pattern& operator=(Pattern const& other) = default;
 
-    bool operator<(Pattern const& other) const noexcept;
-
     bool operator==(Pattern const& other) const noexcept {
         return entries_ == other.entries_;
-    };
+    }
+
+    bool operator<(Pattern const& other) const noexcept {
+        return std::tie(support_, num_keepers_, other.entries_) <
+               std::tie(other.support_, other.num_keepers_, entries_);
+    }
 
     bool operator>(Pattern const& other) const noexcept {
         return other < *this;
@@ -46,6 +49,7 @@ public:
 
     void UpdateCover(boost::dynamic_bitset<> const& used_rows);
     void UpdateKeepers(Row const& inverted_pli_rhs);
+
     size_t GetNumCover() const;
 
     Entries const& GetEntries() const noexcept {
@@ -56,8 +60,8 @@ public:
         return support_;
     }
 
-    void SetSupport(double support) {
-        support_ = support;
+    void SetKeepers(size_t num_violations) noexcept {
+        num_keepers_ = support_ - num_violations;
     }
 
     double GetConfidence() const {
@@ -71,16 +75,11 @@ public:
 
     void SetCover(std::vector<Cluster>&& new_cover) {
         cover_ = std::move(new_cover);
-
         support_ = GetNumCover();
     }
 
     size_t GetNumKeepers() const noexcept {
         return num_keepers_;
-    }
-
-    void SetNumKeepers(size_t num_keepers) {
-        num_keepers_ = num_keepers;
     }
 };
 

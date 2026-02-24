@@ -48,7 +48,6 @@ private:
     double max_level_support_drop_;
     unsigned int max_patterns_;
     unsigned int limit_pli_cache_;
-    bool build_rhs_condition_ = false;
 
     std::list<CFD> cfd_collection_;
     std::unique_ptr<CFDFinderRelationData> relation_;

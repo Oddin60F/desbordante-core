@@ -20,7 +20,7 @@ protected:
         std::vector<model::ColumnIndex> max_values_;
 
     public:
-        ColumnRecords(RowsPtr&& rows) {
+        explicit ColumnRecords(RowsPtr&& rows) {
             size_t num_rows = rows->size();
             size_t num_cols = (*rows)[0].size();
 
@@ -92,7 +92,7 @@ protected:
 public:
     using BitSet = boost::dynamic_bitset<>;
 
-    ExpansionStrategy(RowsPtr&& rows) : columns_(std::move(rows)) {}
+    explicit ExpansionStrategy(RowsPtr&& rows) : columns_(std::move(rows)) {}
 
     virtual ~ExpansionStrategy() = default;
     virtual Pattern GenerateNullPattern(BitSet const& attributes) const = 0;

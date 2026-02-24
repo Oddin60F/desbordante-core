@@ -7,5 +7,6 @@
 
 namespace algos::cfdfinder::utils {
 size_t CalculateViolations(Pattern const& pattern, Row const& inverted_rhs_pli);
-
+std::vector<size_t> CalculateViolations(std::vector<Cluster> const& cover,
+                                        Row const& inverted_rhs_pli);
 }  // namespace algos::cfdfinder::utils

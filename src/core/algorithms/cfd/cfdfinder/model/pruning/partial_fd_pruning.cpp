@@ -10,7 +10,7 @@
 namespace algos::cfdfinder {
 double PartialFdPruning::CalculateG1(Pattern const& pattern) const {
     unsigned long long violations = CalculateViolations(pattern);
-    double normalization = std::pow(num_records_, 2) - num_records_;
+    double normalization = std::pow(num_rows_, 2) - num_rows_;
     return violations / normalization;
 }
 

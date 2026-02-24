@@ -33,15 +33,12 @@ public:
         return std::string(kWildCard);
     }
 
-    int GetTypeRank() const override {
+    inline int GetOrderRank() const override {
         return 0;
     }
 
-    int CompareTo(Entry const& other) const override {
-        int rank = GetTypeRank();
-        int other_rank = other.GetTypeRank();
-        if (rank != other_rank) return rank - other_rank;
-        return 0;
+    bool operator<(Entry const& other) const override {
+        return GetOrderRank() < other.GetOrderRank();
     }
 };
 }  // namespace algos::cfdfinder

@@ -20,8 +20,9 @@ protected:
             std::vector<Cluster> const& cover) const;
 
     virtual void ProcessForId(Entries& buffer_entries, size_t replaced_index, Frontier& frontier,
-                              Row const& inverted_pli_rhs, PruningStrategy& pruning_strategy,
-                              size_t id, std::vector<int>&& valid_constants,
+                              std::vector<size_t> const& cluster_violations,
+                              PruningStrategy& pruning_strategy, size_t id,
+                              std::vector<int>&& valid_constants,
                               std::vector<Cluster> const& cover) const;
 
 public:

@@ -11,7 +11,7 @@
 
 namespace algos::cfdfinder {
 class RangeEntry final : public Entry {
-    std::shared_ptr<std::vector<size_t>> sorted_cluster_ids_;
+    std::shared_ptr<std::vector<size_t>> const sorted_cluster_ids_;
     size_t min_cluster_;
     size_t max_cluster_;
 
@@ -59,6 +59,14 @@ public:
         return !(*this == other);
     }
 
+    bool operator<(Entry const& other) const override {
+        if (GetOrderRank() != other.GetOrderRank()) return GetOrderRank() < other.GetOrderRank();
+
+        auto const& other_range = static_cast<RangeEntry const&>(other);
+        return std::tie(min_cluster_, max_cluster_) <
+               std::tie(other_range.min_cluster_, other_range.max_cluster_);
+    }
+
     size_t Hash() const override {
         size_t hash = 0;
 
@@ -84,21 +92,8 @@ public:
                "]";
     }
 
-    int GetTypeRank() const override {
+    int GetOrderRank() const override {
         return 3;
-    }
-
-    int CompareTo(Entry const& other) const override {
-        int rank = GetTypeRank();
-        int other_rank = other.GetTypeRank();
-        if (rank != other_rank) return rank - other_rank;
-
-        auto const& other_range = static_cast<RangeEntry const&>(other);
-        if (min_cluster_ != other_range.min_cluster_)
-            return min_cluster_ < other_range.min_cluster_ ? -1 : 1;
-        if (max_cluster_ != other_range.max_cluster_)
-            return max_cluster_ < other_range.max_cluster_ ? -1 : 1;
-        return 0;
     }
 };
 }  // namespace algos::cfdfinder

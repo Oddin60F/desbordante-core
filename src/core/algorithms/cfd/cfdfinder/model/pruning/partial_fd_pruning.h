@@ -10,7 +10,7 @@ namespace algos::cfdfinder {
 
 class PartialFdPruning : public PruningStrategy {
 private:
-    size_t num_records_;
+    size_t num_rows_;
     double max_g1_;
     ColumnsPtr const inverted_plis_;
     Row inverted_pli_rhs_;
@@ -20,8 +20,8 @@ private:
     double CalculateG1(Pattern const& pattern) const;
 
 public:
-    PartialFdPruning(size_t num_records, double max_g1, ColumnsPtr&& inverted_plis)
-        : num_records_(num_records), max_g1_(max_g1), inverted_plis_(std::move(inverted_plis)) {}
+    PartialFdPruning(size_t num_rows, double max_g1, ColumnsPtr&& inverted_plis)
+        : num_rows_(num_rows), max_g1_(max_g1), inverted_plis_(std::move(inverted_plis)) {}
 
     void StartNewTableau(Candidate const& candidate) override {
         inverted_pli_rhs_ = inverted_plis_->at(candidate.rhs_);
@@ -36,14 +36,14 @@ public:
     }
 
     bool TryAdding(Pattern& pattern) override {
-        if (CalculateG1(pattern) > max_g1_) {
-            pattern.SetCover({});
-            return false;
+        if (CalculateG1(pattern) <= max_g1_) {
+            return true;
         }
-        return true;
+        pattern.SetCover({});
+        return false;
     }
 
-    bool ValidForProcessing([[maybe_unused]] ValidationContext const& entries) override {
+    bool ValidForProcessing([[maybe_unused]] ValidationContext const& params) override {
         return false;
     }
 

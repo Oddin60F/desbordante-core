@@ -7,6 +7,7 @@
 
 #include "core/algorithms/cfd/cfdfinder/model/pattern/constant_entry.h"
 #include "core/algorithms/cfd/cfdfinder/model/pattern/variable_entry.h"
+#include "core/algorithms/cfd/cfdfinder/util/violations_util.h"
 #include "core/util/bitset_utils.h"
 
 namespace algos::cfdfinder {
@@ -88,7 +89,8 @@ std::vector<std::pair<int, boost::dynamic_bitset<>>> ConstantExpansion::Calculat
 }
 
 void ConstantExpansion::ProcessForId(Entries& buffer_entries, size_t replaced_pos,
-                                     Frontier& frontier, Row const& inverted_pli_rhs,
+                                     Frontier& frontier,
+                                     std::vector<size_t> const& cluster_violations,
                                      PruningStrategy& pruning_strategy, size_t id,
                                      std::vector<int>&& valid_constants,
                                      std::vector<Cluster> const& cover) const {
@@ -114,7 +116,11 @@ void ConstantExpansion::ProcessForId(Entries& buffer_entries, size_t replaced_po
                            [&](size_t cluster_id) { child_cover.push_back(cover[cluster_id]); });
 
         child.SetCover(std::move(child_cover));
-        child.UpdateKeepers(inverted_pli_rhs);
+        size_t new_keepers = 0;
+        util::ForEachIndex(cover_mask, [&](size_t cluster_id) {
+            new_keepers += cluster_violations[cluster_id];
+        });
+        child.SetKeepers(new_keepers);
         frontier.Emplace(std::move(child));
     }
 }
@@ -124,6 +130,8 @@ void ConstantExpansion::ExpandAndProcess(Pattern&& parent_pattern, Frontier& fro
                                          PruningStrategy& pruning_strategy) {
     auto entries_buffer = parent_pattern.GetEntries();
     auto copy_parent_entries = std::make_shared<Entries>(parent_pattern.GetEntries());
+    std::vector<size_t> cluster_violations;
+
     for (size_t i = 0; i < entries_buffer.size(); ++i) {
         auto const& item = entries_buffer[i];
         if (item.entry->IsConstant()) {
@@ -138,8 +146,12 @@ void ConstantExpansion::ExpandAndProcess(Pattern&& parent_pattern, Frontier& fro
         if (valid_values.empty()) {
             continue;
         }
+        if (cluster_violations.empty()) {
+            cluster_violations =
+                    utils::CalculateViolations(parent_pattern.GetCover(), inverted_pli_rhs);
+        }
 
-        ProcessForId(entries_buffer, i, frontier, inverted_pli_rhs, pruning_strategy, item.id,
+        ProcessForId(entries_buffer, i, frontier, cluster_violations, pruning_strategy, item.id,
                      std::move(valid_values), parent_pattern.GetCover());
     }
 }

@@ -20,7 +20,7 @@ struct CFDFinderParams {
     CFDFinderParams(CSVConfig csv_config, algos::cfdfinder::Expansion expansion,
                     algos::cfdfinder::Result result, unsigned int max_lhs, double min_sup,
                     double min_conf, bool is_null_equal_null, config::ThreadNumType thread_num,
-                    std::set<Excepted_CFD> excepted)
+                    config::IndicesType rhs_indeces, std::set<Excepted_CFD> excepted)
         : params({{config::names::kCsvConfig, csv_config},
                   {config::names::kMaximumLhs, max_lhs},
                   {config::names::kCfdPruningStrategy, +algos::cfdfinder::Pruning::legacy},
@@ -28,6 +28,7 @@ struct CFDFinderParams {
                   {config::names::kCfdMinimumConfidence, min_conf},
                   {config::names::kEqualNulls, is_null_equal_null},
                   {config::names::kCfdResultStrategy, +result},
+                  {config::names::kRhsIndices, rhs_indeces},
                   {config::names::kCfdExpansionStrategy, +expansion},
                   {config::names::kThreads, thread_num}}),
           excepted_cfds(std::move(excepted)) {}
@@ -37,7 +38,8 @@ struct CFDFinderParams {
                     algos::cfdfinder::Result result, unsigned int max_lhs, double min_conf,
                     double min_support_gain, double max_level_support_drop,
                     unsigned int pattern_threshold, bool is_null_equal_null,
-                    config::ThreadNumType thread_num, std::set<Excepted_CFD> excepted)
+                    config::ThreadNumType thread_num, config::IndicesType rhs_indeces,
+                    std::set<Excepted_CFD> excepted)
         : params({{config::names::kCsvConfig, csv_config},
                   {config::names::kMaximumLhs, max_lhs},
                   {config::names::kCfdPruningStrategy,
@@ -48,42 +50,45 @@ struct CFDFinderParams {
                   {config::names::kMaxPatterns, pattern_threshold},
                   {config::names::kEqualNulls, is_null_equal_null},
                   {config::names::kCfdResultStrategy, +result},
+                  {config::names::kRhsIndices, rhs_indeces},
                   {config::names::kCfdExpansionStrategy, +expansion},
                   {config::names::kThreads, thread_num}}),
           excepted_cfds(std::move(excepted)) {}
 
     // rhs_filter strategy
-    CFDFinderParams(CSVConfig csv_config, algos::cfdfinder::Expansion expansion,
-                    algos::cfdfinder::Result result, unsigned int max_lhs, double min_conf,
-                    double min_support_gain, double max_level_support_drop,
-                    unsigned int pattern_threshold, config::IndicesType rhs_indeces,
-                    bool is_null_equal_null, config::ThreadNumType thread_num,
-                    std::set<Excepted_CFD> excepted)
-        : params({{config::names::kCsvConfig, csv_config},
-                  {config::names::kMaximumLhs, max_lhs},
-                  {config::names::kCfdPruningStrategy, +algos::cfdfinder::Pruning::rhs_filter},
-                  {config::names::kCfdMinimumConfidence, min_conf},
-                  {config::names::kMinSupportGain, min_support_gain},
-                  {config::names::kMaxLevelSupportDrop, max_level_support_drop},
-                  {config::names::kMaxPatterns, pattern_threshold},
-                  {config::names::kEqualNulls, is_null_equal_null},
-                  {config::names::kRhsIndices, rhs_indeces},
-                  {config::names::kCfdResultStrategy, +result},
-                  {config::names::kCfdExpansionStrategy, +expansion},
-                  {config::names::kThreads, thread_num}}),
-          excepted_cfds(std::move(excepted)) {}
+    //     CFDFinderParams(CSVConfig csv_config, algos::cfdfinder::Expansion expansion,
+    //                     algos::cfdfinder::Result result, unsigned int max_lhs, double min_conf,
+    //                     double min_support_gain, double max_level_support_drop,
+    //                     unsigned int pattern_threshold, config::IndicesType rhs_indeces,
+    //                     bool is_null_equal_null, config::ThreadNumType thread_num,
+    //                     std::set<Excepted_CFD> excepted)
+    //         : params({{config::names::kCsvConfig, csv_config},
+    //                   {config::names::kMaximumLhs, max_lhs},
+    //                   {config::names::kCfdPruningStrategy,
+    //                   +algos::cfdfinder::Pruning::rhs_filter},
+    //                   {config::names::kCfdMinimumConfidence, min_conf},
+    //                   {config::names::kMinSupportGain, min_support_gain},
+    //                   {config::names::kMaxLevelSupportDrop, max_level_support_drop},
+    //                   {config::names::kMaxPatterns, pattern_threshold},
+    //                   {config::names::kEqualNulls, is_null_equal_null},
+    //                   {config::names::kRhsIndices, rhs_indeces},
+    //                   {config::names::kCfdResultStrategy, +result},
+    //                   {config::names::kCfdExpansionStrategy, +expansion},
+    //                   {config::names::kThreads, thread_num}}),
+    //           excepted_cfds(std::move(excepted)) {}
 
     // max_g1 strategy
     CFDFinderParams(CSVConfig csv_config, algos::cfdfinder::Expansion expansion,
                     algos::cfdfinder::Result result, unsigned int max_lhs, double max_g1,
                     bool is_null_equal_null, config::ThreadNumType thread_num,
-                    std::set<Excepted_CFD> excepted)
+                    config::IndicesType rhs_indeces, std::set<Excepted_CFD> excepted)
         : params({{config::names::kCsvConfig, csv_config},
                   {config::names::kCfdResultStrategy, +result},
                   {config::names::kMaximumLhs, max_lhs},
                   {config::names::kCfdPruningStrategy, +algos::cfdfinder::Pruning::partial_fd},
                   {config::names::kCfdExpansionStrategy, +expansion},
                   {config::names::kMaximumG1, max_g1},
+                  {config::names::kRhsIndices, rhs_indeces},
                   {config::names::kEqualNulls, is_null_equal_null},
                   {config::names::kCfdExpansionStrategy, +expansion},
                   {config::names::kThreads, thread_num}}),
@@ -127,16 +132,17 @@ TEST_P(CFDFinderAlgorithmTest, Test) {
 INSTANTIATE_TEST_SUITE_P(
         CFDFinderAdditionalTests, CFDFinderAlgorithmTest,
         ::testing::Values(CFDFinderParams(
-                {kNCVOTER,
+                {kAbalone,
                  algos::cfdfinder::Expansion::constant,
                  algos::cfdfinder::Result::direct,
                  3333,  // max_lhs
                  1.0,   // min_conf
-                 100,
-                 50,
+                 417,
+                 209,
                  1000,
                  true,  // is_null_equal_null
-                 5,
+                 1,
+                 {1},
                  {
                          {"[temp humidity windy play] -> outlook",
                           {"_|high|_|_", "_|_|true|_", "mild|_|_|_", "hot|_|_|_"}},

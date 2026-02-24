@@ -49,7 +49,7 @@ void CFDFinder::ResetState() {
 void CFDFinder::MakeExecuteOptsAvailable() {
     using namespace config::names;
     MakeOptionsAvailable({kMaximumLhs, kLimitPliCache, kLimitPliCache, kCfdExpansionStrategy,
-                          kCfdPruningStrategy, kCfdResultStrategy, kThreads});
+                          kCfdPruningStrategy, kCfdResultStrategy, kThreads, kRhsIndices});
 };
 
 void CFDFinder::RegisterOptions() {
@@ -72,9 +72,7 @@ void CFDFinder::RegisterOptions() {
     auto partial_fd_eq = [](Pruning pruning_strategy) {
         return pruning_strategy == +Pruning::partial_fd;
     };
-    auto rhs_filter_eq = [](Pruning pruning_strategy) {
-        return pruning_strategy == +Pruning::rhs_filter;
-    };
+
     auto get_schema_cols = [this]() { return relation_->GetSchema()->GetNumColumns(); };
 
     RegisterOption(config::kTableOpt(&input_table_));
@@ -101,10 +99,7 @@ void CFDFinder::RegisterOptions() {
                                          {support_independent_eq,
                                           {kMaxPatterns, kMinSupportGain, kMaxLevelSupportDrop,
                                            kCfdMinimumConfidence}},
-                                         {partial_fd_eq, {kMaximumG1}},
-                                         {rhs_filter_eq,
-                                          {kMaxPatterns, kMinSupportGain, kMaxLevelSupportDrop,
-                                           kCfdMinimumConfidence, kRhsIndices}}}));
+                                         {partial_fd_eq, {kMaximumG1}}}));
 }
 
 unsigned long long CFDFinder::ExecuteInternal() {
@@ -199,10 +194,7 @@ void CFDFinder::TraverseLatticePar(RowsPtr compressed_records_shared,
                         std::move(proccess_candidate));
                 futures.push_back(task.get_future());
                 boost::asio::post(thread_pool, std::move(task));
-            }  // === Обрабатываем результаты батча СРАЗУ ===
-            // Каждый future.get() блокируется до готовности, но вычисления идут параллельно
-            // в thread_pool. После get() объект PatternTableau извлечён и может быть
-            // обработан/уничтожен, освобождая память.
+            }
             for (auto& future : futures) {
                 auto [candidate, pattern_tableau_opt] = future.get();
                 if (!pattern_tableau_opt) {
@@ -217,7 +209,6 @@ void CFDFinder::TraverseLatticePar(RowsPtr compressed_records_shared,
                 ++num_results;
                 result_receiver->ReceiveResult(std::move(candidate), *pattern_tableau_opt);
             }
-            // futures уничтожаются здесь → вся промежуточная память батча освобождена
         }
 
         thread_pool.join();
@@ -452,7 +443,6 @@ CFDFinder::Lattice CFDFinder::GetLattice(PLIsPtr plis, RowsPtr compressed_record
             auto is_generalization = [&subset, rhs = fd.rhs_](auto const& candidate) {
                 return rhs == candidate.rhs_ && subset.is_subset_of(candidate.lhs_);
             };
-
             if (!std::ranges::any_of(candidates, is_generalization)) {
                 candidates.emplace_back(std::move(subset), fd.rhs_);
             }
@@ -463,6 +453,9 @@ CFDFinder::Lattice CFDFinder::GetLattice(PLIsPtr plis, RowsPtr compressed_record
     Lattice levels(relation_->GetNumColumns() - 1);
 
     for (auto&& candidate : candidates) {
+        // if (!rhs_filter_.empty() && !std::ranges::binary_search(rhs_filter_, candidate.rhs_)) {
+        //     continue;
+        // }
         size_t level = candidate.lhs_.count() - 1;
         levels[level].insert(std::move(candidate));
     }
@@ -547,10 +540,6 @@ std::shared_ptr<PruningStrategy> CFDFinder::InitPruningStrategy(ColumnsPtr inver
         case Pruning::partial_fd:
             return std::make_shared<PartialFdPruning>(relation_->GetNumRows(), max_g1_,
                                                       std::move(inverted_plis));
-        case Pruning::rhs_filter:
-            return std::make_shared<RhsFilterPruning>(max_patterns_, min_support_gain_,
-                                                      max_level_support_drop_, min_confidence_,
-                                                      rhs_filter_, threads_num_);
         default:
             return std::make_shared<LegacyPruning>(min_support_, min_confidence_,
                                                    relation_->GetNumRows());

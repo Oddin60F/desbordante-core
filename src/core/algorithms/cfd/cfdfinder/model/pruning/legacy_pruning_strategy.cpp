@@ -17,7 +17,7 @@ void LegacyPruning::StartNewTableau([[maybe_unused]] Candidate const& candidate)
 }
 
 bool LegacyPruning::HasEnoughPatterns([[maybe_unused]] std::vector<Pattern> const& tableau) {
-    return cumulative_support_ >= min_support_ * num_tuples_;
+    return cumulative_support_ >= min_support_ * num_rows_;
 }
 
 bool LegacyPruning::IsPatternWorthConsidering(double new_support) const {
@@ -34,8 +34,8 @@ bool LegacyPruning::TryAdding(Pattern& pattern) {
     return false;
 }
 
-bool LegacyPruning::ValidForProcessing(ValidationContext const& entries) {
-    auto buff_entries = entries.entries_buffer;
+bool LegacyPruning::ValidForProcessing(ValidationContext const& params) {
+    auto buff_entries = params.entries_buffer;
     std::shared_ptr<Entry> buff_entry = std::make_shared<VariableEntry>();
     for (size_t i = 0; i < buff_entries.size(); ++i) {
         if (buff_entries[i].entry->IsConstant()) {

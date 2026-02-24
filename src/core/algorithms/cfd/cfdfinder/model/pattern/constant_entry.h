@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <tuple>
 
 #include <boost/functional/hash.hpp>
 
@@ -41,19 +42,15 @@ public:
         return true;
     }
 
-    int GetTypeRank() const override {
+    inline int GetOrderRank() const override {
         return 1;
     }
 
-    int CompareTo(Entry const& other) const override {
-        int rank = GetTypeRank();
-        int other_rank = other.GetTypeRank();
-        if (rank != other_rank) return rank - other_rank;
+    bool operator<(Entry const& other) const override {
+        if (GetOrderRank() != other.GetOrderRank()) return GetOrderRank() < other.GetOrderRank();
 
         auto const& other_constant = static_cast<ConstantEntry const&>(other);
-        if (constant_ < other_constant.constant_) return -1;
-        if (constant_ > other_constant.constant_) return 1;
-        return 0;
+        return constant_ < other_constant.constant_;
     }
 
     std::string ToString(InvertedClusterMap const& cluster_map) const override {

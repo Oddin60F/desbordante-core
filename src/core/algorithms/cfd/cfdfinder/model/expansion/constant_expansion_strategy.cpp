@@ -7,38 +7,34 @@
 
 #include "core/algorithms/cfd/cfdfinder/model/pattern/constant_entry.h"
 #include "core/algorithms/cfd/cfdfinder/model/pattern/variable_entry.h"
-#include "core/algorithms/cfd/cfdfinder/util/violations_util.h"
 #include "core/util/bitset_utils.h"
 
 namespace algos::cfdfinder {
 
-Pattern ConstantExpansion::GenerateNullPattern(BitSet const& attributes) const {
-    Entries entries;
-    util::ForEachIndex(attributes, [&entries](size_t attr) {
-        entries.emplace_back(attr, std::make_shared<VariableEntry>());
+Entries ConstantExpansion::GenerateNullEntries(BitSet const& attributes) const {
+    Entries null_entries;
+    util::ForEachIndex(attributes, [&null_entries](size_t attr) {
+        null_entries.emplace_back(attr, std::make_shared<VariableEntry>());
     });
 
-    return Pattern(std::move(entries));
+    return null_entries;
 }
 
-std::vector<int> ConstantExpansion::CalculateUniqueConstants(
-        size_t column_id, std::vector<Cluster> const& cover) const {
+boost::dynamic_bitset<> ConstantExpansion::CalculateUniqueConstants(size_t column_id,
+                                                                    Cover const& cover) const {
     boost::dynamic_bitset<> unique_constants(columns_.GetMaxValue(column_id));
     auto const& column = columns_.GetColumn(column_id);
 
     for (auto const& cluster : cover) {
         unique_constants.set(column[cluster[0]]);
     }
-    std::vector<int> cluster_ids;
-    cluster_ids.reserve(unique_constants.count());
-    util::ForEachIndex(unique_constants, [&](size_t value) { cluster_ids.push_back(value); });
-    return cluster_ids;
+
+    return unique_constants;
 }
 
 std::vector<int> ConstantExpansion::FilterForSupport(
         std::vector<int>&& valid_constants, PruningStrategy const& pruning_strategy,
-        std::vector<size_t> const& cluster_representatives,
-        std::vector<Cluster> const& cover) const {
+        std::vector<size_t> const& cluster_representatives, Cover const& cover) const {
     boost::unordered_flat_map<int, size_t> accumulated_support;
     accumulated_support.reserve(valid_constants.size());
     for (int val : valid_constants) {
@@ -64,8 +60,8 @@ std::vector<int> ConstantExpansion::FilterForSupport(
 
 std::vector<std::pair<int, boost::dynamic_bitset<>>> ConstantExpansion::CalculateCoverMasks(
         std::vector<int>&& processed_values, std::vector<size_t> const& cluster_representatives,
-        std::vector<Cluster> const& cover) const {
-    std::unordered_map<int, size_t> value_to_idx;
+        Cover const& cover) const {
+    boost::unordered_flat_map<int, size_t> value_to_idx;
     value_to_idx.reserve(processed_values.size());
     for (size_t idx = 0; idx < processed_values.size(); ++idx) {
         value_to_idx[processed_values[idx]] = idx;
@@ -89,11 +85,9 @@ std::vector<std::pair<int, boost::dynamic_bitset<>>> ConstantExpansion::Calculat
 }
 
 void ConstantExpansion::ProcessForId(Entries& buffer_entries, size_t replaced_pos,
-                                     Frontier& frontier,
-                                     std::vector<size_t> const& cluster_violations,
+                                     Frontier& frontier, Row const& inverted_pli_rhs,
                                      PruningStrategy& pruning_strategy, size_t id,
-                                     std::vector<int>&& valid_constants,
-                                     std::vector<Cluster> const& cover) const {
+                                     std::vector<int>&& valid_constants, Cover const& cover) const {
     auto cluster_representatives = GetClusterRepresentatives(id, cover);
 
     std::vector<int> final_constants = FilterForSupport(
@@ -106,21 +100,16 @@ void ConstantExpansion::ProcessForId(Entries& buffer_entries, size_t replaced_po
             CalculateCoverMasks(std::move(final_constants), cluster_representatives, cover);
 
     for (auto const& [constant, cover_mask] : results) {
-        Entries new_entries = buffer_entries;
-        new_entries[replaced_pos].entry = std::make_shared<ConstantEntry>(constant);
-
-        Pattern child(std::move(new_entries));
-        std::vector<Cluster> child_cover;
+        Cover child_cover;
         child_cover.reserve(cover_mask.count());
         util::ForEachIndex(cover_mask,
                            [&](size_t cluster_id) { child_cover.push_back(cover[cluster_id]); });
 
-        child.SetCover(std::move(child_cover));
-        size_t new_keepers = 0;
-        util::ForEachIndex(cover_mask, [&](size_t cluster_id) {
-            new_keepers += cluster_violations[cluster_id];
-        });
-        child.SetKeepers(new_keepers);
+        Entries new_entries = buffer_entries;
+        new_entries[replaced_pos].entry = std::make_shared<ConstantEntry>(constant);
+
+        Pattern child(std::move(new_entries), std::move(child_cover), inverted_pli_rhs);
+
         frontier.Emplace(std::move(child));
     }
 }
@@ -130,15 +119,15 @@ void ConstantExpansion::ExpandAndProcess(Pattern&& parent_pattern, Frontier& fro
                                          PruningStrategy& pruning_strategy) {
     auto entries_buffer = parent_pattern.GetEntries();
     auto copy_parent_entries = std::make_shared<Entries>(parent_pattern.GetEntries());
-    std::vector<size_t> cluster_violations;
 
     for (size_t i = 0; i < entries_buffer.size(); ++i) {
         auto const& item = entries_buffer[i];
-        if (item.entry->IsConstant()) {
+        if (item.entry->IsConstantType()) {
             continue;
         }
 
-        std::vector<int> unique_ids = CalculateUniqueConstants(item.id, parent_pattern.GetCover());
+        boost::dynamic_bitset<> unique_ids =
+                CalculateUniqueConstants(item.id, parent_pattern.GetCover());
         std::vector<int> valid_values = FilterValidConstants<int>(
                 entries_buffer, copy_parent_entries, i, unique_ids, frontier, pruning_strategy,
                 [](int val) { return std::make_shared<ConstantEntry>(val); });
@@ -146,12 +135,8 @@ void ConstantExpansion::ExpandAndProcess(Pattern&& parent_pattern, Frontier& fro
         if (valid_values.empty()) {
             continue;
         }
-        if (cluster_violations.empty()) {
-            cluster_violations =
-                    utils::CalculateViolations(parent_pattern.GetCover(), inverted_pli_rhs);
-        }
 
-        ProcessForId(entries_buffer, i, frontier, cluster_violations, pruning_strategy, item.id,
+        ProcessForId(entries_buffer, i, frontier, inverted_pli_rhs, pruning_strategy, item.id,
                      std::move(valid_values), parent_pattern.GetCover());
     }
 }

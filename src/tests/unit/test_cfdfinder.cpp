@@ -132,13 +132,13 @@ TEST_P(CFDFinderAlgorithmTest, Test) {
 INSTANTIATE_TEST_SUITE_P(
         CFDFinderAdditionalTests, CFDFinderAlgorithmTest,
         ::testing::Values(CFDFinderParams(
-                {kAbalone,
-                 algos::cfdfinder::Expansion::constant,
+                {k2019,
+                 algos::cfdfinder::Expansion::range,
                  algos::cfdfinder::Result::direct,
                  3333,  // max_lhs
                  1.0,   // min_conf
-                 417,
-                 209,
+                 15,
+                 7,
                  1000,
                  true,  // is_null_equal_null
                  1,

@@ -25,7 +25,7 @@ public:
         return 0x9e3779b9;
     }
 
-    bool IsConstant() const override {
+    bool IsConstantType() const override {
         return false;
     }
 

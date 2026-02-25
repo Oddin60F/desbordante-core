@@ -39,11 +39,11 @@ public:
         if (CalculateG1(pattern) <= max_g1_) {
             return true;
         }
-        pattern.SetCover({});
+        // pattern.SetCover({});
         return false;
     }
 
-    bool ValidForProcessing([[maybe_unused]] ValidationContext const& params) override {
+    bool ValidForProcessing([[maybe_unused]] ValidationContext&& params) override {
         return false;
     }
 

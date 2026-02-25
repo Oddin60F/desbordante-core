@@ -33,18 +33,19 @@ RangePatternExpansion::RangePatternExpansion(InvertedClusterMaps const& inverted
                                [](auto const& entry) { return entry.first; });
 
         sorted_clusters_ids_.push_back(
-                std::make_shared<SortedClustersId>(std::move(sorted_cluster_ids)));
+                std::make_shared<SortedClustersId const>(std::move(sorted_cluster_ids)));
     }
 }
 
-Pattern RangePatternExpansion::GenerateNullPattern(BitSet const& attributes) const {
-    Entries entries;
+Entries RangePatternExpansion::GenerateNullEntries(BitSet const& attributes) const {
+    Entries null_entries;
     util::ForEachIndex(attributes, [&](size_t attr) {
         auto const& clusters = sorted_clusters_ids_.at(attr);
-        entries.emplace_back(attr, std::make_shared<RangeEntry>(clusters, 0, clusters->size() - 1));
+        null_entries.emplace_back(attr,
+                                  std::make_shared<RangeEntry>(clusters, 0, clusters->size() - 1));
     });
 
-    return Pattern(std::move(entries));
+    return null_entries;
 }
 
 void RangePatternExpansion::ExpandAndProcess(Pattern&& parent_pattern, Frontier& frontier,
@@ -68,9 +69,21 @@ void RangePatternExpansion::ExpandAndProcess(Pattern&& parent_pattern, Frontier&
             replased.push_back(std::move(rentry));
         }
 
-        auto valid_entries = FilterValidConstants<std::shared_ptr<Entry>>(
-                parent_entries, copy_parent_entries, i, replased, frontier, pruning_strategy,
-                [](auto entry) { return entry; });
+        std::vector<std::shared_ptr<Entry>> valid_entries;
+
+        for (auto&& new_entry : replased) {
+            std::shared_ptr<Entry>& original_entry = parent_entries[i].entry;
+
+            std::swap(original_entry, new_entry);
+            PruningStrategy::ValidationContext ctx{parent_entries, i, original_entry,
+                                                   copy_parent_entries};
+            //&& !frontier.Contains(entries_buffer)
+            if (pruning_strategy.ValidForProcessing(std::move(ctx))) {
+                valid_entries.push_back(new_entry);
+            }
+
+            std::swap(original_entry, new_entry);
+        }
 
         if (valid_entries.empty()) {
             continue;
@@ -89,15 +102,14 @@ void RangePatternExpansion::ExpandAndProcess(Pattern&& parent_pattern, Frontier&
 
             if (!pruning_strategy.IsPatternWorthConsidering(support)) continue;
 
-            std::vector<Cluster> child_cover;
+            Cover child_cover;
             for (size_t cid = 0; cid < cover.size(); ++cid) {
                 if (new_entry->Matches(first_vals[cid])) child_cover.push_back(cover[cid]);
             }
             Entries child_entries = parent_entries;
             child_entries[i].entry = new_entry;
-            Pattern child(std::move(child_entries));
-            child.SetCover(std::move(child_cover));
-            child.UpdateKeepers(inverted_pli_rhs);
+
+            Pattern child(std::move(child_entries), std::move(child_cover), inverted_pli_rhs);
             frontier.Emplace(std::move(child));
         }
     }

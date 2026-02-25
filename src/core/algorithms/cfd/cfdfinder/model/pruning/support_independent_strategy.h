@@ -107,7 +107,7 @@ public:
     bool HasEnoughPatterns(std::vector<Pattern> const& tableau) override;
     bool IsPatternWorthConsidering(double new_support) const override;
     bool TryAdding(Pattern& pattern) override;
-    bool ValidForProcessing(ValidationContext const& params) override;
+    bool ValidForProcessing(ValidationContext&& entries) override;
     bool ContinueGeneration(PatternTableau const& current_tableau) override;
 
     std::shared_ptr<PruningStrategy> Clone() const override {

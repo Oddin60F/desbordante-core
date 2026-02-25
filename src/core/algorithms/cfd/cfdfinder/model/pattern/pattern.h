@@ -14,25 +14,34 @@ namespace algos::cfdfinder {
 
 class Pattern {
 private:
-    Entries entries_;
+    Entries const entries_;
     std::vector<Cluster> cover_;
     double support_;
     size_t num_keepers_;
-    size_t cached_hash_ = 0;
+    size_t const cached_hash_;
+
+    size_t CalculateViolations(Row const& inverted_rhs_pli) const;
 
 public:
-    explicit Pattern(Entries&& entries) : entries_(std::move(entries)) {
-        cached_hash_ = std::hash<Entries>{}(entries_);
-    }
+    explicit Pattern(Entries&& entries)
+        : entries_(std::move(entries)), cached_hash_(std::hash<Entries>{}(entries_)) {}
 
-    size_t GetHash() const noexcept {
-        return cached_hash_;
+    Pattern(Entries&& entries, std::vector<Cluster>&& cover, Row const& inverted_pli_rhs)
+        : entries_(std::move(entries)),
+          cover_(std::move(cover)),
+          cached_hash_(std::hash<Entries>{}(entries_)) {
+        support_ = GetNumCover();
+        UpdateKeepers(inverted_pli_rhs);
     }
 
     Pattern(Pattern&& other) noexcept = default;
     Pattern(Pattern const& other) = default;
     Pattern& operator=(Pattern&& other) noexcept = default;
     Pattern& operator=(Pattern const& other) = default;
+
+    size_t GetHash() const noexcept {
+        return cached_hash_;
+    }
 
     bool operator==(Pattern const& other) const noexcept {
         return entries_ == other.entries_;
@@ -60,10 +69,6 @@ public:
         return support_;
     }
 
-    void SetKeepers(size_t num_violations) noexcept {
-        num_keepers_ = support_ - num_violations;
-    }
-
     double GetConfidence() const {
         auto num_cover = GetNumCover();
         return num_cover == 0 ? 0 : static_cast<double>(num_keepers_) / num_cover;
@@ -71,11 +76,6 @@ public:
 
     std::vector<Cluster> const& GetCover() const noexcept {
         return cover_;
-    }
-
-    void SetCover(std::vector<Cluster>&& new_cover) {
-        cover_ = std::move(new_cover);
-        support_ = GetNumCover();
     }
 
     size_t GetNumKeepers() const noexcept {

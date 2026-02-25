@@ -1,6 +1,5 @@
 #include "core/algorithms/cfd/cfdfinder/model/pruning/legacy_pruning_strategy.h"
 
-#include <list>
 #include <memory>
 #include <ranges>
 
@@ -34,17 +33,18 @@ bool LegacyPruning::TryAdding(Pattern& pattern) {
     return false;
 }
 
-bool LegacyPruning::ValidForProcessing(ValidationContext const& params) {
+bool LegacyPruning::ValidForProcessing(ValidationContext&& params) {
     auto buff_entries = params.entries_buffer;
     std::shared_ptr<Entry> buff_entry = std::make_shared<VariableEntry>();
-    for (size_t i = 0; i < buff_entries.size(); ++i) {
-        if (buff_entries[i].entry->IsConstant()) {
-            std::swap(buff_entries[i].entry, buff_entry);
-            if (!visited_.contains(buff_entries)) {
-                return false;
-            }
-            std::swap(buff_entries[i].entry, buff_entry);
+    for (auto& [_, entry] : buff_entries) {
+        if (!entry->IsConstantType()) {
+            continue;
         }
+        std::swap(entry, buff_entry);
+        if (!visited_.contains(buff_entries)) {
+            return false;
+        }
+        std::swap(entry, buff_entry);
     }
     return true;
 }

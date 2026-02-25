@@ -53,9 +53,9 @@ bool SupportIndependentPruning::TryAdding(Pattern& pattern) {
     return true;
 }
 
-bool SupportIndependentPruning::ValidForProcessing(ValidationContext const& params) {
-    ReplacedEntries replaces_entries{params.parent_entries,
-                                     {params.replaced_index, params.new_entry}};
+bool SupportIndependentPruning::ValidForProcessing(ValidationContext&& params) {
+    ReplacedEntries replaces_entries{std::move(params.parent_entries),
+                                     {params.replaced_index, std::move(params.new_entry)}};
     return visited_.insert(std::move(replaces_entries)).second;
 }
 

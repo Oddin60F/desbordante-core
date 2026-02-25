@@ -25,10 +25,6 @@ public:
         return patterns_;
     };
 
-    std::vector<Pattern>& GetPatterns() {
-        return patterns_;
-    };
-
     double GetSupport() const;
     double GetConfidence() const;
 };

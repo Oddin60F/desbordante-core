@@ -35,7 +35,7 @@ public:
         return constant_;
     }
 
-    bool IsConstant() const override {
+    bool IsConstantType() const override {
         return true;
     }
 

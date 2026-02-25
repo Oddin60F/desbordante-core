@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <unordered_set>
 
 #include <boost/unordered/unordered_flat_set.hpp>
 
@@ -32,7 +31,7 @@ public:
 
     bool TryAdding(Pattern& pattern) override;
 
-    bool ValidForProcessing(ValidationContext const& params) override;
+    bool ValidForProcessing(ValidationContext&& params) override;
 
     bool ContinueGeneration(PatternTableau const& currentTableau) override;
 

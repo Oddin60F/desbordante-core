@@ -5,7 +5,6 @@
 #include <cstddef>
 #include <future>
 #include <ranges>
-#include <unordered_set>
 
 #include <boost/asio/post.hpp>
 #include <boost/asio/thread_pool.hpp>
@@ -22,7 +21,6 @@
 #include "core/algorithms/cfd/cfdfinder/model/result_strategies.h"
 #include "core/algorithms/cfd/cfdfinder/types/frontier.h"
 #include "core/algorithms/cfd/cfdfinder/util/lhs_utils.h"
-#include "core/algorithms/cfd/cfdfinder/util/violations_util.h"
 #include "core/algorithms/fd/hycommon/util/pli_util.h"
 #include "core/config/equal_nulls/option.h"
 #include "core/config/indices/option.h"
@@ -215,7 +213,7 @@ void CFDFinder::TraverseLatticePar(RowsPtr compressed_records_shared,
 
         auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(
                 std::chrono::system_clock::now() - start_level_time);
-        LOG_INFO("Finished level {} ({}), {} results.", height, elapsed_seconds.count(),
+        LOG_INFO("Finished level {} ({}s), {} results.", height, elapsed_seconds.count(),
                  num_results);
         --height;
     }
@@ -278,7 +276,7 @@ InvertedClusterMaps CFDFinder::BuildEnrichedStructures(PLIsPtr plis_shared,
     inverted_cluster_maps.reserve(relation_->GetNumColumns());
 
     for (size_t i = 0; i < relation_->GetNumColumns(); ++i) {
-        auto enriched_pli = EnrichPLI(plis_shared->at(i), relation_->GetNumRows());
+        auto enriched_pli = utils::EnrichPLI(plis_shared->at(i), relation_->GetNumRows());
         InvertedClusterMap inverted_cluster_map;
 
         for (size_t cluster_id = 0; cluster_id < enriched_pli.size(); ++cluster_id) {
@@ -315,28 +313,6 @@ void CFDFinder::RegisterResults(std::shared_ptr<ResultStrategy> result_receiver,
         cfd_collection_.emplace_back(std::move(lhs_v), std::move(rhs_c), result.patterns_,
                                      relation_->GetSharedPtrSchema(), inverted_cluster_maps);
     }
-}
-
-std::vector<Cluster> CFDFinder::EnrichPLI(model::PLI const* pli, int num_tuples) const {
-    std::unordered_set<int> existing_elements;
-    existing_elements.reserve(pli->GetSize());
-
-    auto const& original_clusters = pli->GetIndex();
-    for (auto const& cluster : original_clusters) {
-        existing_elements.insert(cluster.begin(), cluster.end());
-    }
-    size_t missing_count = num_tuples - existing_elements.size();
-
-    std::vector<Cluster> enriched_clusters;
-    enriched_clusters.reserve(original_clusters.size() + missing_count);
-    enriched_clusters.assign(original_clusters.begin(), original_clusters.end());
-
-    for (int i = 0; i < num_tuples; ++i) {
-        if (!existing_elements.contains(i)) {
-            enriched_clusters.emplace_back(1, i);
-        }
-    }
-    return enriched_clusters;
 }
 
 void CFDFinder::EnrichCompressedRecords(RowsPtr compressed_records,
@@ -467,11 +443,8 @@ PatternTableau CFDFinder::GenerateTableau(boost::dynamic_bitset<> const& lhs_att
                                           model::PLI const* lhs_pli, Row const& inverted_pli_rhs,
                                           std::shared_ptr<ExpansionStrategy> expansion_strategy,
                                           std::shared_ptr<PruningStrategy> pruning_strategy) {
-    auto null_pattern = expansion_strategy->GenerateNullPattern(lhs_attributes);
-    auto null_cover = EnrichPLI(lhs_pli, relation_->GetNumRows());
-
-    null_pattern.SetCover(std::move(null_cover));
-    null_pattern.UpdateKeepers(inverted_pli_rhs);
+    auto null_pattern =
+            expansion_strategy->GenerateNullPattern(lhs_attributes, lhs_pli, inverted_pli_rhs);
 
     Frontier frontier;
     frontier.Emplace(std::move(null_pattern));

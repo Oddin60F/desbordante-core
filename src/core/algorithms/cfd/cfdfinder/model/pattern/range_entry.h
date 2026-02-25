@@ -11,12 +11,12 @@
 
 namespace algos::cfdfinder {
 class RangeEntry final : public Entry {
-    std::shared_ptr<std::vector<size_t>> const sorted_cluster_ids_;
+    std::shared_ptr<std::vector<size_t> const> sorted_cluster_ids_;
     size_t min_cluster_;
     size_t max_cluster_;
 
 public:
-    RangeEntry(std::shared_ptr<std::vector<size_t>> sorted_clusters, size_t min_cluster,
+    RangeEntry(std::shared_ptr<std::vector<size_t> const> sorted_clusters, size_t min_cluster,
                size_t max_cluster)
         : sorted_cluster_ids_(std::move(sorted_clusters)),
           min_cluster_(min_cluster),
@@ -43,7 +43,7 @@ public:
         return value >= min_cluster_ && value <= max_cluster_;
     }
 
-    bool IsConstant() const override {
+    bool IsConstantType() const override {
         return false;
     }
 
@@ -92,7 +92,7 @@ public:
                "]";
     }
 
-    int GetOrderRank() const override {
+    inline int GetOrderRank() const override {
         return 3;
     }
 };

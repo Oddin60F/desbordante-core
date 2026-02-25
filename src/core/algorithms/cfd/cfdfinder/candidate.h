@@ -14,10 +14,7 @@ struct Candidate {
     Candidate(boost::dynamic_bitset<> lhs, size_t rhs) noexcept : lhs_(std::move(lhs)), rhs_(rhs) {}
 
     bool operator<(Candidate const& other) const noexcept {
-        if (rhs_ != other.rhs_) {
-            return rhs_ < other.rhs_;
-        }
-        return lhs_ < other.lhs_;
+        return std::tie(rhs_, lhs_) < std::tie(other.rhs_, other.lhs_);
     }
 
     bool operator==(Candidate const& other) const noexcept {

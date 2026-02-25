@@ -16,6 +16,7 @@ CSVConfig CreateCsvConfig(std::string_view filename, char separator, bool has_he
 CSVConfig const kWine = CreateCsvConfig("wine.csv", ',', true);
 CSVConfig const kNCVOTER = CreateCsvConfig("ncvoter.csv", ',', true);
 CSVConfig const kNursery = CreateCsvConfig("nursery.csv", ',', true);
+CSVConfig const k2019 = CreateCsvConfig("2019.csv", ',', true);
 
 CSVConfig const kAbalone = CreateCsvConfig("abalone.csv", ',', true);
 CSVConfig const kACShippingDates = CreateCsvConfig("ACShippingDates.csv", ',', true);

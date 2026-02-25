@@ -2,6 +2,8 @@
 #include <memory>
 #include <vector>
 
+#include <boost/functional/hash.hpp>
+
 #include "core/algorithms/cfd/cfdfinder/model/pattern/entry.h"
 
 namespace algos::cfdfinder {
@@ -25,14 +27,41 @@ struct PatternItem {
 using Entries = std::vector<PatternItem>;
 
 struct ReplacedEntries {
+private:
+    size_t compute_hash() const {
+        size_t seed = 0;
+        auto const& entries = *parent_entries;
+        for (size_t i = 0; i < entries.size(); ++i) {
+            if (i == replaced_entry.id) {
+                boost::hash_combine(seed, replaced_entry.entry->Hash());
+            } else {
+                boost::hash_combine(seed, entries[i].entry->Hash());
+            }
+        }
+        return seed;
+    }
+
+public:
     std::shared_ptr<Entries const> parent_entries;
-    PatternItem replaced_entry;
+    PatternItem const replaced_entry;
+    size_t const cached_hash_;
+
+    ReplacedEntries(std::shared_ptr<Entries const> p, PatternItem r)
+        : parent_entries(std::move(p)),
+          replaced_entry(std::move(r)),
+          cached_hash_(compute_hash()) {}
 
     bool operator==(ReplacedEntries const& other) const {
-        if (parent_entries->size() != other.parent_entries->size()) return false;
-        for (size_t i = 0; i < parent_entries->size(); ++i) {
-            auto const& this_item = (*parent_entries)[i];
-            auto const& other_item = (*other.parent_entries)[i];
+        auto const& this_entries = *parent_entries;
+        auto const& other_entries = *other.parent_entries;
+
+        if (this_entries.size() != other_entries.size()) {
+            return false;
+        }
+
+        for (size_t i = 0; i < this_entries.size(); ++i) {
+            auto const& this_item = this_entries[i];
+            auto const& other_item = other_entries[i];
             if (this_item.id != other_item.id) return false;
 
             auto const& this_entry =
@@ -52,9 +81,8 @@ template <>
 struct std::hash<algos::cfdfinder::Entries> {
     size_t operator()(algos::cfdfinder::Entries const& entries) const {
         size_t seed = 0;
-        for (auto const& [id, entry] : entries) {
-            seed = seed * 31 + id;
-            seed = seed * 31 + entry->Hash();
+        for (auto const& [_, entry] : entries) {
+            boost::hash_combine(seed, entry->Hash());
         }
         return seed;
     }
@@ -63,17 +91,6 @@ struct std::hash<algos::cfdfinder::Entries> {
 template <>
 struct std::hash<algos::cfdfinder::ReplacedEntries> {
     size_t operator()(algos::cfdfinder::ReplacedEntries const& r) const {
-        size_t seed = 0;
-        auto const& entries = *r.parent_entries;
-        for (size_t i = 0; i < entries.size(); ++i) {
-            auto const& item = entries[i];
-            seed = seed * 31 + item.id;
-            if (i == r.replaced_entry.id) {
-                seed = seed * 31 + r.replaced_entry.entry->Hash();
-            } else {
-                seed = seed * 31 + item.entry->Hash();
-            }
-        }
-        return seed;
+        return r.cached_hash_;
     }
 };

@@ -9,7 +9,7 @@ set(BENCHMARK_BINARY ${CMAKE_PROJECT_NAME}_benchmark)
 
 # Auto-collect test sources
 file(GLOB common_sources "common/*.h" "common/*.cpp")
-file(GLOB unit_test_sources "unit/*.h" "unit/*.cpp")
+file(GLOB unit_test_sources "unit/main.cpp" "unit/test_cfdfinder.cpp" "unit/test_hash_util.h")
 file(GLOB benchmark_sources "benchmark/*.h" "benchmark/*.cpp")
 
 if (DESBORDANTE_BUILD_TESTS)

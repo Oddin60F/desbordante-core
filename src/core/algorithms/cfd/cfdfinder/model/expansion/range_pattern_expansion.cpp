@@ -71,7 +71,8 @@ void RangePatternExpansion::ExpandAndProcess(Pattern&& parent_pattern, Frontier&
 
         std::vector<std::shared_ptr<Entry>> valid_entries;
 
-        for (auto&& new_entry : replased) {
+        for (auto&& range_entry : replased) {
+            std::shared_ptr<Entry> new_entry = range_entry;
             std::shared_ptr<Entry>& original_entry = parent_entries[i].entry;
 
             std::swap(original_entry, new_entry);
@@ -79,7 +80,7 @@ void RangePatternExpansion::ExpandAndProcess(Pattern&& parent_pattern, Frontier&
                                                    copy_parent_entries};
             //&& !frontier.Contains(entries_buffer)
             if (pruning_strategy.ValidForProcessing(std::move(ctx))) {
-                valid_entries.push_back(new_entry);
+                valid_entries.push_back(range_entry);
             }
 
             std::swap(original_entry, new_entry);
@@ -94,18 +95,28 @@ void RangePatternExpansion::ExpandAndProcess(Pattern&& parent_pattern, Frontier&
 
         for (auto&& new_entry : valid_entries) {
             size_t support = 0;
+            boost::dynamic_bitset<> cover_mask(cover.size());
+            auto* range_new = static_cast<RangeEntry*>(new_entry.get());
+            size_t low = range_new->GetLowerBound();
+            size_t high = range_new->GetUpperBound();
+
             for (size_t cluster_id = 0; cluster_id < cover.size(); ++cluster_id) {
-                if (new_entry->Matches(first_vals[cluster_id])) {
+                size_t val = first_vals[cluster_id];
+
+                if (val >= low && val <= high) {
                     support += cover[cluster_id].size();
+                    cover_mask.set(cluster_id);
                 }
             }
 
             if (!pruning_strategy.IsPatternWorthConsidering(support)) continue;
 
             Cover child_cover;
-            for (size_t cid = 0; cid < cover.size(); ++cid) {
-                if (new_entry->Matches(first_vals[cid])) child_cover.push_back(cover[cid]);
-            }
+            child_cover.reserve(cover_mask.count());
+            util::ForEachIndex(cover_mask, [&](size_t cluster_id) {
+                child_cover.push_back(cover[cluster_id]);
+            });
+
             Entries child_entries = parent_entries;
             child_entries[i].entry = new_entry;
 

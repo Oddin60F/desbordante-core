@@ -1,7 +1,12 @@
 #pragma once
 
+#include <cstddef>
+#include <utility>
+#include <vector>
+
 #include "core/algorithms/cfd/cfdfinder/model/expansion/expansion_strategy.h"
 #include "core/algorithms/cfd/cfdfinder/model/pattern/entry.h"
+#include "core/algorithms/cfd/cfdfinder/model/pruning/pruning_strategy.h"
 #include "core/algorithms/cfd/cfdfinder/types/hyfd_types.h"
 
 namespace algos::cfdfinder {
@@ -25,15 +30,15 @@ protected:
 
     Entries GenerateNullEntries(BitSet const& attributes) const override;
 
-    template <typename Candidate, typename EntryCreator>
-    std::vector<Candidate> FilterValidConstants(Entries& entries_buffer,
-                                                std::shared_ptr<Entries> const& parent_entries,
-                                                size_t replaced_index,
-                                                boost::dynamic_bitset<> const& constants,
-                                                Frontier const& frontier,
-                                                PruningStrategy& pruning_strategy,
-                                                EntryCreator&& create_entry) const {
-        std::vector<Candidate> valid_constants;
+    template <typename EntryCreator>
+    std::vector<int> FilterValidConstants(Entries& entries_buffer,
+                                          std::shared_ptr<Entries> const& parent_entries,
+                                          size_t replaced_index,
+                                          boost::dynamic_bitset<> const& constants,
+                                          Frontier const& frontier,
+                                          PruningStrategy& pruning_strategy,
+                                          EntryCreator&& create_entry) const {
+        std::vector<int> valid_constants;
         util::ForEachIndex(constants, [&](size_t constant) {
             std::shared_ptr<Entry> new_entry = create_entry(constant);
             std::shared_ptr<Entry>& original_entry = entries_buffer[replaced_index].entry;
@@ -42,8 +47,7 @@ protected:
             PruningStrategy::ValidationContext ctx{entries_buffer, replaced_index, original_entry,
                                                    parent_entries};
 
-            if (pruning_strategy.ValidForProcessing(std::move(ctx)) &&
-                !frontier.Contains(entries_buffer)) {
+            if (pruning_strategy.ValidForProcessing(std::move(ctx))) {
                 valid_constants.push_back(constant);
             }
 

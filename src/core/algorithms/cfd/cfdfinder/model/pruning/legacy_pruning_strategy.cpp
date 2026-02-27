@@ -34,14 +34,14 @@ bool LegacyPruning::TryAdding(Pattern& pattern) {
 }
 
 bool LegacyPruning::ValidForProcessing(ValidationContext&& params) {
-    auto buff_entries = params.entries_buffer;
+    auto buffer_entries = params.entries_buffer;
     std::shared_ptr<Entry> buff_entry = std::make_shared<VariableEntry>();
-    for (auto& [_, entry] : buff_entries) {
+    for (auto& [_, entry] : buffer_entries) {
         if (!entry->IsConstantType()) {
             continue;
         }
         std::swap(entry, buff_entry);
-        if (!visited_.contains(buff_entries)) {
+        if (!visited_.contains(buffer_entries)) {
             return false;
         }
         std::swap(entry, buff_entry);

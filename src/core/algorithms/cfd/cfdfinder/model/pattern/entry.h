@@ -18,7 +18,6 @@ public:
     virtual ~Entry() = default;
 
     virtual inline int GetOrderRank() const = 0;
-    virtual bool Matches(size_t value) const = 0;
     virtual size_t Hash() const = 0;
     virtual bool operator==(Entry const& other) const = 0;
     virtual bool operator<(Entry const& other) const = 0;

@@ -279,13 +279,18 @@ InvertedClusterMaps CFDFinder::BuildEnrichedStructures(PLIsPtr plis_shared,
         auto enriched_pli = utils::EnrichPLI(plis_shared->at(i), relation_->GetNumRows());
         InvertedClusterMap inverted_cluster_map;
 
+        std::unordered_map<int, typename ClusterMap::key_type> element_to_key;
+        for (auto const& [key, cluster] : cluster_maps[i]) {
+            for (int elem : cluster) {
+                element_to_key[elem] = key;
+            }
+        }
+
         for (size_t cluster_id = 0; cluster_id < enriched_pli.size(); ++cluster_id) {
-            int first_element = enriched_pli[cluster_id][0];
-            for (auto const& [key, cluster] : cluster_maps[i]) {
-                if (std::find(cluster.begin(), cluster.end(), first_element) != cluster.end()) {
-                    inverted_cluster_map[cluster_id] = key;
-                    break;
-                }
+            int first_element = enriched_pli[cluster_id].front();
+            auto it = element_to_key.find(first_element);
+            if (it != element_to_key.end()) {
+                inverted_cluster_map[cluster_id] = it->second;
             }
         }
 

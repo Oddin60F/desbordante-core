@@ -13,7 +13,7 @@ namespace algos::cfdfinder {
 
 Entries ConstantExpansion::GenerateNullEntries(BitSet const& attributes) const {
     Entries null_entries;
-    util::ForEachIndex(attributes, [&null_entries](size_t attr) {
+    util::ForEachIndex(attributes, [&](size_t attr) {
         null_entries.emplace_back(attr, std::make_shared<VariableEntry>());
     });
 

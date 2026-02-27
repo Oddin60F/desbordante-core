@@ -18,10 +18,6 @@ private:
 public:
     explicit NegativeConstantEntry(size_t constant) : constant_(constant) {}
 
-    inline bool Matches(size_t value) const override final {
-        return constant_ != value;
-    }
-
     bool operator==(Entry const& other) const override final {
         auto const* other_constant = dynamic_cast<NegativeConstantEntry const*>(&other);
         return other_constant != nullptr && constant_ == other_constant->constant_;

@@ -34,11 +34,11 @@ std::list<BitSet> GenerateLhsSupersets(BitSet const& lhs) {
     return supersets;
 }
 
-std::vector<Cluster> EnrichPLI(model::PLI const* pli, size_t num_tuples) {
+std::vector<Cluster> EnrichPLI(model::PLI const* lhs_pli, size_t num_tuples) {
     std::unordered_set<int> existing_elements;
-    existing_elements.reserve(pli->GetSize());
+    existing_elements.reserve(lhs_pli->GetSize());
 
-    auto const& original_clusters = pli->GetIndex();
+    auto const& original_clusters = lhs_pli->GetIndex();
     for (auto const& cluster : original_clusters) {
         existing_elements.insert(cluster.begin(), cluster.end());
     }

@@ -11,6 +11,7 @@
 
 namespace algos::cfdfinder {
 class RangeEntry final : public Entry {
+private:
     std::shared_ptr<std::vector<size_t> const> sorted_cluster_ids_;
     size_t min_cluster_;
     size_t max_cluster_;
@@ -21,6 +22,14 @@ public:
         : sorted_cluster_ids_(std::move(sorted_clusters)),
           min_cluster_(min_cluster),
           max_cluster_(max_cluster) {}
+
+    size_t GetLowerBound() const noexcept {
+        return min_cluster_;
+    }
+
+    size_t GetUpperBound() const noexcept {
+        return max_cluster_;
+    }
 
     bool IncreaseLowerBound() {
         ++min_cluster_;
@@ -37,10 +46,6 @@ public:
 
     std::shared_ptr<Entry> Clone() const {
         return std::make_shared<RangeEntry>(*this);
-    }
-
-    inline bool Matches(size_t value) const final override {
-        return value >= min_cluster_ && value <= max_cluster_;
     }
 
     bool IsConstantType() const override {

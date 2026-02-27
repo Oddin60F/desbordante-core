@@ -83,7 +83,7 @@ void PositiveNegativeConstantExpansion::ExpandAndProcess(Pattern&& parent_patter
 
         boost::dynamic_bitset<> unique_ids =
                 CalculateUniqueConstants(item.id, parent_pattern.GetCover());
-        auto valid_pos_constants = FilterValidConstants<int>(
+        auto valid_pos_constants = FilterValidConstants(
                 parent_entries, copy_parent_entries, i, unique_ids, frontier, pruning_strategy,
                 [](int val) { return std::make_shared<ConstantEntry>(val); });
 
@@ -93,7 +93,7 @@ void PositiveNegativeConstantExpansion::ExpandAndProcess(Pattern&& parent_patter
                     std::move(valid_pos_constants), parent_pattern.GetCover());
         }
 
-        auto valid_neg_constants = FilterValidConstants<int>(
+        auto valid_neg_constants = FilterValidConstants(
                 parent_entries, copy_parent_entries, i, unique_ids, frontier, pruning_strategy,
                 [](int val) { return std::make_shared<NegativeConstantEntry>(val); });
 

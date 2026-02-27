@@ -128,7 +128,7 @@ void ConstantExpansion::ExpandAndProcess(Pattern&& parent_pattern, Frontier& fro
 
         boost::dynamic_bitset<> unique_ids =
                 CalculateUniqueConstants(item.id, parent_pattern.GetCover());
-        std::vector<int> valid_values = FilterValidConstants<int>(
+        std::vector<int> valid_values = FilterValidConstants(
                 entries_buffer, copy_parent_entries, i, unique_ids, frontier, pruning_strategy,
                 [](int val) { return std::make_shared<ConstantEntry>(val); });
 

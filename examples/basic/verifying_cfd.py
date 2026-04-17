@@ -1,8 +1,8 @@
 import desbordante
 import pandas
 
-TABLE_PATH = 'examples/datasets/cfd_verification_datasets/city.csv'
-TABLE_PATH_FIXED = 'examples/datasets/cfd_verification_datasets/city_fixed.csv'
+TABLE_PATH = 'examples/datasets/cfd_datasets/city.csv'
+TABLE_PATH_FIXED = 'examples/datasets/cfd_datasets/city_fixed.csv'
 COLOR_CODES = {
     'bold_red': '\u001b[1;31m',
     'bold_green': '\033[1;32m',

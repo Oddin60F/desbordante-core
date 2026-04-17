@@ -1,0 +1,16 @@
+DrugName,Company,Dosage,Form,PriceUSD
+Lipitor,Pfizer,10mg,Tablet,45
+Lipitor,Pfizer,20mg,Tablet,55
+Lipitor,Pfizer Inc,40mg,Tablet,70
+Nexium,AstraZeneca,20mg,Capsule,60
+Nexium,AstraZeneca,40mg,Capsule,80
+Nexium,AstraZeneca,40mg,Capsule,85
+Plavix,Sanofi,75mg,Tablet,50
+Plavix,Sanofi,75mg,Tablet,53
+Plavix,Sanoffi,75mg,Tablet,52
+Ventolin,GSK,100mcg,Inhaler,35
+Ventolin,GSK,200mcg,Inhaler,40
+Advair,GSK,100mcg,Inhaler,120
+Advair,GSK,250mcg,Inhaler,150
+Advair,GSK,500mcg,Inhaler,180
+Plavix,Sanofi,75mg,Tablet,51

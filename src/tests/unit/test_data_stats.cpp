@@ -899,4 +899,40 @@ TEST(TestDataStats, TestLastCharFrequency) {
     EXPECT_EQ(result, " :4");
 }
 
+// TODO: Add tests
+TEST(TestDataStats, TestPearsonCorrelation) {
+    auto stats_ptr = MakeStatAlgorithm(kTestDataStats);
+    algos::DataStats &stats = *stats_ptr;
+
+    algos::Statistic pearson_stat = stats.GetPearsonCorrelation(0, 1);
+    double result = mo::Type::GetValue<mo::Double>(pearson_stat.GetData());
+    EXPECT_EQ(result, 0.8);
+}
+
+TEST(TestDataStats, TestSpearmanCorrelation) {
+    auto stats_ptr = MakeStatAlgorithm(kTestDataStats);
+    algos::DataStats &stats = *stats_ptr;
+
+    algos::Statistic spearman_stat = stats.GetSpearmanCorrelation(0, 1);
+    double result = mo::Type::GetValue<mo::Double>(spearman_stat.GetData());
+    EXPECT_EQ(result, 0.8);
+}
+
+TEST(TestDataStats, TestKendallCorrelation) {
+    auto stats_ptr = MakeStatAlgorithm(kTestDataStats);
+    algos::DataStats &stats = *stats_ptr;
+
+    algos::Statistic kendall_stat = stats.GetKendallCorrelation(0, 1);
+    double result = mo::Type::GetValue<mo::Double>(kendall_stat.GetData());
+    EXPECT_EQ(result, 0.6);
+}
+
+TEST(TestDataStats, TestCramersVCorrelation) {
+    auto stats_ptr = MakeStatAlgorithm(kTestDataStats);
+    algos::DataStats &stats = *stats_ptr;
+
+    algos::Statistic cramers_v_stat = stats.GetCramersVCorrelation(0, 1);
+    double result = mo::Type::GetValue<mo::Double>(cramers_v_stat.GetData());
+    EXPECT_EQ(result, 0.8);
+}
 };  // namespace tests

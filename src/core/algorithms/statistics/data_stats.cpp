@@ -1314,4 +1314,184 @@ Statistic DataStats::GetGiniCoefficient(size_t index) const {
     return Statistic(double_type.MakeValue(gini), &double_type, false);
 }
 
+Statistic DataStats::GetPearsonCorrelation(size_t index1, size_t index2) const {
+    if (index1 == index2) return {};
+
+    mo::TypedColumnData const& col1 = col_data_[index1];
+    mo::TypedColumnData const& col2 = col_data_[index2];
+    if (!col1.IsNumeric() || !col2.IsNumeric() ||
+        (this->NumberOfValues(index1) != this->NumberOfValues(index2))) {
+        return {};
+    }
+
+    Statistic avg_col1 = GetAvg(index1);
+    Statistic avg_col2 = GetAvg(index2);
+
+    double numerator = 0.0;
+    double demon_x = 0.0;
+    double demon_y = 0.0;
+    double avg_x = mo::Type::GetValue<double>(avg_col1.GetData());
+    double avg_y = mo::Type::GetValue<double>(avg_col2.GetData());
+
+    auto const& data_col1 = col1.GetData();
+    auto const& data_col2 = col2.GetData();
+
+    for (size_t i = 0; i < col1.GetNumRows(); ++i) {
+        if (col1.IsNullOrEmpty(i) || col2.IsNullOrEmpty(i)) {
+            continue;
+        }
+        double dx = data_col1[i] - avg_x;
+        double dy = data_col2[i] - avg_y;
+        numerator += dx * dy;
+        demon_x += dx * dx;
+        demon_y += dy * dy;
+    }
+    mo::DoubleType double_type;
+
+    return (demon_x == 0 || demon_y == 0)
+                   ? {}
+                   : Statistic(double_type.MakeValue(numerator / std::sqrt(demon_x * demon_y)),
+                               &double_type, false);
+}
+
+std::vector<size_t> DataStats::GetRanks(std::vector<double> const& non_empty_and_null_data) {
+    size_t n = non_empty_and_null_data.size();
+    std::vector<size_t> ranks(n);
+    std::vector<size_t> ids(n);
+
+    std::iota(ids.begin(), ids.end(), 0);
+    std::range::sort(ids, [&](size_t a, size_t b) {
+        return non_empty_and_null_data[a] < non_empty_and_null_data[b];
+    });
+
+    for (size_t i = 0; i < n; ++i) {
+        ranks[ids[i]] = i;
+    }
+
+    return ranks;
+}
+
+Statistic DataStats::GetSpearmanCorrelation(size_t index1, size_t index2) const {
+    if (index1 == index2) return {};
+
+    mo::TypedColumnData const& col1 = col_data_[index1];
+    mo::TypedColumnData const& col2 = col_data_[index2];
+    if (!col1.IsNumeric() || !col2.IsNumeric() ||
+        (this->NumberOfValues(index1) != this->NumberOfValues(index2))) {
+        return {};
+    }
+
+    std::vector<double> x;
+    std::vector<double> y;
+
+    for (size_t i = 0; i < col1.GetNumRows(); ++i) {
+        if (col1.IsNullOrEmpty(i) || col2.IsNullOrEmpty(i)) continue;
+        x.push_back(model::Type::GetValue<double>(col1.GetValue(i)));
+        y.push_back(model::Type::GetValue<double>(col2.GetValue(i)));
+    }
+    size_t n = x.size();
+    double denominator = n * (std::pow(n, 2) - 1);
+    if (denominator == 0.0) return {};
+
+    std::vector<size_t> x_rank = GetRanks(x);
+    std::vector<size_t> y_rank = GetRanks(y);
+
+    double sum_d2 = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+        double d = static_cast<double>(x_rank[i] - y_rank[i]);
+        sum_d2 += std::pow(d, 2);
+    }
+
+    double rho = 1.0 - (6.0 * sum_d2) / denominator;
+    mo::DoubleType double_type;
+    return Statistic(double_type.MakeValue(rho), &double_type, false);
+}
+
+Statistic DataStats::GetKendallCorrelation(size_t index1, size_t index2) const {
+    if (index1 == index2) return {};
+
+    mo::TypedColumnData const& col1 = col_data_[index1];
+    mo::TypedColumnData const& col2 = col_data_[index2];
+    if (!col1.IsNumeric() || !col2.IsNumeric() ||
+        (this->NumberOfValues(index1) != this->NumberOfValues(index2))) {
+        return {};
+    }
+
+    auto const& x = col1.GetData();
+    auto const& y = col2.GetData();
+
+    double concordant = 0;
+    double discordant = 0;
+
+    for (size_t i = 0; i < col1.GetNumRows(); ++i) {
+        if (col1.IsNullOrEmpty(i) || col2.IsNullOrEmpty(i)) {
+            continue;
+        }
+        for (size_t j = i + 1; j < col2.GetNumRows(); ++j) {
+            if (col1.IsNullOrEmpty(j) || col2.IsNullOrEmpty(j)) {
+                continue;
+            }
+            double dx = x[i] - x[j];
+            double dy = y[i] - y[j];
+            if (dx * dy > 0) {
+                ++concordant;
+            } else if (dx * dy < 0) {
+                ++discordant;
+            }
+        }
+    }
+    mo::DoubleType double_type;
+    double total = concordant + discordant;
+    return total == 0 ? {}
+                      : Statistic(double_type.MakeValue((concordant - discordant) / total),
+                                  &double_type, false);
+}
+
+Statistic DataStats::GetCramersVCorrelation(size_t index1, size_t index2) const {
+    if (index1 == index2) return {};
+
+    mo::TypedColumnData const& col1 = col_data_[index1];
+    mo::TypedColumnData const& col2 = col_data_[index2];
+    if (this->NumberOfValues(index1) == 0 || this->NumberOfValues(index2) == 0) {
+        return {};
+    }
+    size_t n = 0;
+    std::map<std::string, size_t> row_totals;
+    std::map<std::string, size_t> col_totals;
+    std::map<std::pair<std::string, std::string>, size_t> contingency;
+
+    for (size_t i = 0; i < col1.GetNumRows(); ++i) {
+        if (col1.IsNullOrEmpty(i) || col2.IsNullOrEmpty(i)) continue;
+
+        std::string val1 = model::Type::GetValue<std::string>(col1.GetValue(i));
+        std::string val2 = model::Type::GetValue<std::string>(col2.GetValue(i));
+
+        ++contingency[{val1, val2}];
+        ++row_totals[val1];
+        ++col_totals[val2];
+        ++n;
+    }
+
+    if (n == 0) return {};
+
+    double chi2 = 0.0;
+    for (auto const& [row_val, row_total] : row_totals) {
+        for (auto const& [col_val, col_total] : col_totals) {
+            double expected = static_cast<double>(row_total * col_total) / n;
+            if (expected > 0) {
+                double observed = contingency[{row_val, col_val}];
+                chi2 += std::pow(observed - expected, 2) / expected;
+            }
+        }
+    }
+
+    size_t r = row_totals.size();
+    size_t k = col_totals.size();
+    mo::DoubleType double_type;
+
+    size_t min_dim = std::min(r - 1, k - 1);
+    return (min_dim == 0) ? Statistic(0, &double_type, false)
+                          : Statistic(double_type.MakeValue(std::sqrt(chi2 / (n * (min_dim)))),
+                                      &double_type, false);
+}
 }  // namespace algos
